@@ -26,3 +26,6 @@ class Score:
         self.total_score = 0
         self.action_log = []
         return {"message": "Score has been reset."}
+    
+
+    

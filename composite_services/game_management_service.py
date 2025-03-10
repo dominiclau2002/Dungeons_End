@@ -72,7 +72,7 @@ def load_game():
         # Restore Enemies
         for room, health in game_state["enemies"].items():
             if room in enemy_instances:
-                enemy_instances[room].health = health
+                enemy_instances[room].health = health 
 
         # Restore Activity Logs
         global activity_log

@@ -36,7 +36,5 @@ if __name__ == '__main__':
     app.run(port=5010, debug=True)
 
 
-
-
 # call
 # GET http://127.0.0.1:5010/inventory 

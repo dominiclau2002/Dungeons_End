@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  player:
+    build: 
+      context: .
+      dockerfile: ./atomic_services/player/Dockerfile
+    container_name: player
+    ports: 
+      - "5000:5000"
+
+  inventory:
+    build:
+      context: .
+      dockerfile: ./atomic_services/inventory/Dockerfile
+    container_name: inventory
+    ports:
+      - "5001:5001"
+
+  item:
+    build: 
+      context: .
+      dockerfile: ./atomic_services/item/Dockerfile
+    container_name: item
+    ports:
+      - "5002:5002"

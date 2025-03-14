@@ -6,12 +6,12 @@ FROM python:3.12
 WORKDIR /app
 
 # Copy requirements and install dependencies
-COPY requirements.txt /app/
+COPY ./requirements.txt /app/
 RUN python -m pip install --no-cache-dir -r /app/requirements.txt
 
 # Copy necessary files
 COPY app.py /app/
-COPY dice.py /app/
+
 
 # Expose Flask port
 EXPOSE 5007

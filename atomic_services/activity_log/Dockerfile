@@ -1,13 +1,20 @@
-#activitylog dockerfile
-FROM python:3.11-slim
+#activity_log dockerfile
+# Use official Python image
+FROM python:3.12
 
+# Set working directory inside the container
 WORKDIR /app
-COPY . /app
 
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+# Copy requirements and install dependencies
+COPY ./requirements.txt /app/
+RUN python -m pip install --no-cache-dir -r /app/requirements.txt
 
+# Copy necessary files
+COPY app.py /app/
+
+
+# Expose Flask port
 EXPOSE 5013
 
-# Run app.py and RabbitMQ consumer at the same time
-CMD ["sh", "-c", "python rabbitmq_consumer.py & python app.py"]
+# Start the dice service
+CMD ["python", "/app/app.py"]

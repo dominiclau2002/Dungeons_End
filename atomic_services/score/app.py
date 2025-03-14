@@ -6,7 +6,7 @@ from score import Score, db
 app = Flask(__name__)
 
 # ✅ Database Configuration
-DATABASE_URL = "mysql+mysqlconnector://root:@localhost/score_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "mysql+mysqlconnector://user:password@mysql:3306/score_db")
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 

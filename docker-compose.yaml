@@ -4,6 +4,10 @@ services:
   mysql:
     image: mysql:8
     restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      retries: 5
     environment:
       MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: player_db
@@ -23,51 +27,62 @@ services:
 
   player_service:
     build: ./atomic_services/player
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/player_db
     ports:
       - "5000:5000"
-    depends_on:
-      - mysql
-    environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql/player_db
 
   enemy_service:
     build: ./atomic_services/enemy
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/enemy_db
     ports:
       - "5005:5005"
-    depends_on:
-      - mysql
-    environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql/enemy_db
 
   inventory_service:
     build: ./atomic_services/inventory
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/inventory_db
     ports:
       - "5001:5001"
-    depends_on:
-      - mysql
-    environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql/inventory_db
 
   score_service:
     build: ./atomic_services/score
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/score_db
     ports:
       - "5015:5015"
-    depends_on:
-      - mysql
-    environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql/score_db
 
   activity_log_service:
     build: ./atomic_services/activity_log
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/activity_log_db
     ports:
       - "5013:5013"
-    depends_on:
-      - mysql
-    environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql/activity_log_db
 
   web_app:
     build: ./web
+    restart: always
     ports:
       - "5050:5050"
     depends_on:
@@ -76,3 +91,7 @@ services:
       - inventory_service
       - score_service
       - activity_log_service
+    environment:
+      - SELECT_CHARACTER_URL=http://player_service:5000/select_character
+      - ROOM_SERVICE_URL=http://entering_room:5011/room
+      - COMBAT_SERVICE_URL=http://fight_enemy:5008/combat

@@ -6,7 +6,7 @@ import os
 app = Flask(__name__)
 
 # ✅ Database Configuration
-DATABASE_URL = "mysql+mysqlconnector://root:@localhost/item_db"
+DATABASE_URL = os.getenv("DATABASE_URL", "mysql+mysqlconnector://user:password@mysql:3306/item_db")
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

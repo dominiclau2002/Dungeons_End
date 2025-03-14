@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Adventure Game</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+        #game-log { border: 1px solid black; padding: 10px; height: 300px; overflow-y: auto; }
+        button { margin: 10px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Welcome to the Text Adventure Game!</h1>
+    
+    <div id="character-selection">
+        <h2>Select Your Character</h2>
+        <button onclick="selectCharacter('Warrior')">Warrior</button>
+        <button onclick="selectCharacter('Rogue')">Rogue</button>
+        <button onclick="selectCharacter('Cleric')">Cleric</button>
+        <button onclick="selectCharacter('Witch')">Witch</button>
+    </div>
+
+    <div id="game-log"></div>
+
+    <div id="game-actions" style="display:none;">
+        <button onclick="enterRoom()">Enter Next Room</button>
+        <button onclick="attackEnemy()">Attack Enemy</button>
+    </div>
+
+    <script>
+        let player_id = 1;
+        let room_id = 1;
+
+        function logMessage(message) {
+            $("#game-log").append("<p>" + message + "</p>");
+        }
+
+        function selectCharacter(character) {
+            $.post("/select_character", JSON.stringify({player_id, character_name: character}), function(response) {
+                logMessage("Character selected: " + character);
+                $("#character-selection").hide();
+                $("#game-actions").show();
+            }, "json");
+        }
+
+        function enterRoom() {
+            $.post("/enter_room", JSON.stringify({player_id, room_id}), function(response) {
+                logMessage("Entered room: " + response.room_name);
+                logMessage(response.description);
+                room_id++;
+            }, "json");
+        }
+
+        function attackEnemy() {
+            $.post("/attack", JSON.stringify({player_id, room_id}), function(response) {
+                logMessage(response.message);
+            }, "json");
+        }
+    </script>
+</body>
+</html>

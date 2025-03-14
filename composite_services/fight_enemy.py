@@ -1,122 +1,169 @@
 from flask import Flask, jsonify, request
-from atomic_services.player import Player
-from atomic_services.enemy import get_enemy
-from atomic_services.dice import Dice
+import requests
+import os
 
 app = Flask(__name__)
 
-# Simulated player instance (should be replaced with a proper player management system)
-player = Player(name="Hero")
+# ✅ Microservice URLs from environment variables
+ENEMY_SERVICE_URL = os.getenv("ENEMY_SERVICE_URL", "http://enemy_service:5005")
+PLAYER_SERVICE_URL = os.getenv("PLAYER_SERVICE_URL", "http://player_service:5000")
+DICE_SERVICE_URL = os.getenv("DICE_SERVICE_URL", "http://dice_service:5007")
+ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 
-@app.route('/combat/<room_name>/start', methods=['GET'])
-def start_combat(room_name):
+@app.route('/combat/start/<int:room_id>', methods=['POST'])
+def start_combat(room_id):
     """
     Starts combat with an enemy in the specified room.
+    Automatically triggers combat after entering a room if an enemy exists.
     """
-    enemy = get_enemy(room_name)
+    player_id = request.json.get("player_id")
+    if not player_id:
+        return jsonify({"error": "Player ID is required"}), 400
 
-    if enemy.is_defeated():
-        return jsonify({"message": f"{enemy.name} is already defeated!"}), 400
+    # ✅ Fetch enemy details
+    enemy_response = requests.get(f"{ENEMY_SERVICE_URL}/enemy/{room_id}")
+    if enemy_response.status_code != 200:
+        return jsonify({"message": "No enemy found in this room.", "combat": False})
+
+    enemy = enemy_response.json()
+
+    # ✅ Log combat initiation
+    log_data = {
+        "player_id": player_id,
+        "action": f"Engaged in combat with {enemy['Name']} in Room {room_id}"
+    }
+    requests.post(f"{ACTIVITY_LOG_SERVICE_URL}/log", json=log_data)
 
     return jsonify({
-        "message": f"You encountered a {enemy.name}!",
-        "player_health": player.health,
-        "enemy_health": enemy.health
+        "message": f"You encountered a {enemy['Name']}!",
+        "enemy": {
+            "name": enemy["Name"],
+            "health": enemy["Health"],
+            "attacks": enemy["Attacks"]
+        },
+        "combat": True
     })
 
-@app.route('/combat/<room_name>/attack', methods=['POST'])
-def player_attack(room_name):
+@app.route('/combat/attack/<int:room_id>', methods=['POST'])
+def player_attack(room_id):
     """
-    The player attacks the enemy.
-    Uses dice roll to determine damage.
+    The player attacks the enemy. Uses dice roll to determine damage.
     """
-    if player.health <= 0:
-        return jsonify({"message": "You are already dead! Game Over."}), 400
+    player_id = request.json.get("player_id")
+    if not player_id:
+        return jsonify({"error": "Player ID is required"}), 400
 
-    enemy = get_enemy(room_name)
+    # ✅ Fetch enemy details
+    enemy_response = requests.get(f"{ENEMY_SERVICE_URL}/enemy/{room_id}")
+    if enemy_response.status_code != 200:
+        return jsonify({"error": "No enemy found in this room"}), 404
 
-    if enemy.is_defeated():
-        return jsonify({"message": f"{enemy.name} is already defeated!"}), 400
+    enemy = enemy_response.json()
 
-    # Roll damage based on player's weapon (for now, assume a simple D6 roll)
-    dice = Dice(6)
-    damage = dice.roll()[0]  # Single D6 roll
+    # ✅ Roll for player attack damage
+    dice_response = requests.get(f"{DICE_SERVICE_URL}/roll?sides=6")
+    if dice_response.status_code != 200:
+        return jsonify({"error": "Dice roll failed"}), 500
 
-    enemy_result = enemy.take_damage(damage)
+    damage = dice_response.json()["results"][0]
 
-    if enemy.is_defeated():
-        loot = enemy.drop_loot()
+    # ✅ Attack enemy
+    attack_response = requests.post(f"{ENEMY_SERVICE_URL}/enemy/{room_id}/damage", json={"damage": damage})
+    if attack_response.status_code != 200:
+        return jsonify({"error": "Failed to attack the enemy"}), 500
+
+    enemy_after_attack = attack_response.json()
+
+    # ✅ Log attack action
+    log_data = {
+        "player_id": player_id,
+        "action": f"Attacked {enemy['Name']} for {damage} damage"
+    }
+    requests.post(f"{ACTIVITY_LOG_SERVICE_URL}/log", json=log_data)
+
+    # ✅ If enemy is defeated, return victory message
+    if "loot" in enemy_after_attack:
         return jsonify({
-            "message": f"You defeated {enemy.name}!",
+            "message": f"You defeated {enemy['Name']}!",
             "damage_dealt": damage,
-            "enemy_health": 0,
-            "loot": loot
+            "loot": enemy_after_attack["loot"],
+            "combat_over": True
         })
 
     return jsonify({
-        "message": f"You attacked {enemy.name} for {damage} damage!",
+        "message": f"You attacked {enemy['Name']} for {damage} damage!",
         "damage_dealt": damage,
-        "enemy_health": enemy.health
+        "enemy_health": enemy_after_attack["message"],
+        "combat_over": False
     })
 
-@app.route('/combat/<room_name>/enemy-turn', methods=['POST'])
-def enemy_attack(room_name):
+@app.route('/combat/enemy-turn/<int:room_id>', methods=['POST'])
+def enemy_attack(room_id):
     """
     The enemy takes its turn and attacks the player.
     """
-    enemy = get_enemy(room_name)
+    player_id = request.json.get("player_id")
+    if not player_id:
+        return jsonify({"error": "Player ID is required"}), 400
 
-    if enemy.is_defeated():
-        return jsonify({"message": f"{enemy.name} is already defeated!"}), 400
+    # ✅ Fetch enemy details
+    enemy_response = requests.get(f"{ENEMY_SERVICE_URL}/enemy/{room_id}")
+    if enemy_response.status_code != 200:
+        return jsonify({"error": "No enemy found in this room"}), 404
 
-    attack_result = enemy.attack()
-    damage = attack_result["damage"]
+    enemy = enemy_response.json()
 
-    player.decrease_health(damage)
+    # ✅ Enemy attacks (randomized)
+    attack_response = requests.get(f"{ENEMY_SERVICE_URL}/enemy/{room_id}/attack")
+    if attack_response.status_code != 200:
+        return jsonify({"error": "Enemy attack failed"}), 500
 
-    # Check if the player has lost all HP
-    if player.health <= 0:
-        return jsonify({
-            "message": f"{enemy.name} attacked you with {attack_result['attack']} for {damage} damage! You have been defeated.",
-            "player_health": 0,
-            "game_over": True
-        })
+    attack_data = attack_response.json()
+    damage = attack_data["damage"]
+
+    # ✅ Update player health
+    player_update_response = requests.put(f"{PLAYER_SERVICE_URL}/player/{player_id}", json={"health": f"-{damage}"})
+    if player_update_response.status_code != 200:
+        return jsonify({"error": "Failed to update player health"}), 500
+
+    # ✅ Log enemy attack action
+    log_data = {
+        "player_id": player_id,
+        "action": f"Was attacked by {enemy['Name']} for {damage} damage"
+    }
+    requests.post(f"{ACTIVITY_LOG_SERVICE_URL}/log", json=log_data)
 
     return jsonify({
-        "message": f"{enemy.name} attacked you with {attack_result['attack']} for {damage} damage!",
-        "player_health": player.health,
-        "enemy_health": enemy.health,
-        "status_effect": attack_result["status_effect"]
+        "message": f"{enemy['Name']} attacked you with {attack_data['attack']} for {damage} damage!",
+        "player_health": player_update_response.json()["Player"]["Health"],
+        "enemy_health": enemy["Health"]
     })
 
-@app.route('/combat/game-over', methods=['GET'])
-def game_over():
+@app.route('/combat/game-over/<int:player_id>', methods=['GET'])
+def game_over(player_id):
     """
     Handles game over state when the player has 0 HP.
     """
-    if player.health > 0:
-        return jsonify({"message": "You are still alive! Keep fighting."}), 400
+    player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+    if player_response.status_code != 200:
+        return jsonify({"error": "Player not found"}), 404
+
+    player = player_response.json()
+
+    if player["Health"] > 0:
+        return jsonify({"message": "You are still alive! Keep fighting."})
+
+    # ✅ Log game over event
+    log_data = {
+        "player_id": player_id,
+        "action": "Game Over - Player defeated"
+    }
+    requests.post(f"{ACTIVITY_LOG_SERVICE_URL}/log", json=log_data)
 
     return jsonify({
         "message": "Game Over! You have been defeated.",
-        "restart": "/restart"  # Future feature for restarting the game
+        "restart": "/game/restart"
     })
 
 if __name__ == '__main__':
-    app.run(port=5008, debug=True)
-
-
-# run service
-# python composite_services/combat_service.py
-
-# start combat
-# GET http://127.0.0.1:5008/combat/Room 2/start
-
-# player attack
-# POST http://127.0.0.1:5008/combat/Room 2/attack
-
-# enemy attack
-# POST http://127.0.0.1:5008/combat/Room 2/enemy-turn
-
-# check for gameover
-# GET http://127.0.0.1:5008/combat/game-over
+    app.run(host="0.0.0.0", port=5008, debug=True)

@@ -2,17 +2,13 @@ version: '3.8'
 
 services:
   mysql:
-    image: mysql:8
+    image: mysql:latest
     restart: always
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      retries: 5
     environment:
-      MYSQL_ROOT_PASSWORD: rootpass
-      MYSQL_DATABASE: player_db
+      MYSQL_ROOT_PASSWORD: rootpassword
       MYSQL_USER: user
       MYSQL_PASSWORD: password
+      MYSQL_DATABASE: main_db
     ports:
       - "3307:3306"
 
@@ -23,149 +19,163 @@ services:
       - "8080:80"
     environment:
       PMA_HOST: mysql
-      MYSQL_ROOT_PASSWORD: rootpass
-
-  character_service:
-    build: ./atomic_services/character
-    restart: always
+      MYSQL_ROOT_PASSWORD: rootpassword
     depends_on:
-      mysql:
-        condition: service_healthy
-    environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/character_db
-    ports:
-      - "5018:5018"
+      - mysql
 
   player_service:
     build: ./atomic_services/player
     restart: always
-    depends_on:
-      mysql:
-        condition: service_healthy
-      character_service:
-        condition: service_started
     environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/player_db
-      - CHARACTER_SERVICE_URL=http://character_service:5018
+      DATABASE_URL: mysql+mysqlconnector://user:password@mysql/player_db
     ports:
       - "5000:5000"
+    depends_on:
+      - mysql
+
+  character_service:
+    build: ./atomic_services/character
+    restart: always
+    environment:
+      DATABASE_URL: mysql+mysqlconnector://user:password@mysql/character_db
+    ports:
+      - "5003:5003"
+    depends_on:
+      - mysql
 
   enemy_service:
     build: ./atomic_services/enemy
     restart: always
-    depends_on:
-      mysql:
-        condition: service_healthy
     environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/enemy_db
+      DATABASE_URL: mysql+mysqlconnector://user:password@mysql/enemy_db
     ports:
       - "5005:5005"
+    depends_on:
+      - mysql
+
+  item_service:
+    build: ./atomic_services/item
+    restart: always
+    environment:
+      DATABASE_URL: mysql+mysqlconnector://user:password@mysql/item_db
+    ports:
+      - "5002:5002"
+    depends_on:
+      - mysql
 
   inventory_service:
     build: ./atomic_services/inventory
     restart: always
-    depends_on:
-      mysql:
-        condition: service_healthy
     environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/inventory_db
+      DATABASE_URL: mysql+mysqlconnector://user:password@mysql/inventory_db
     ports:
       - "5001:5001"
+    depends_on:
+      - mysql
+
+  dice_service:
+    build: ./atomic_services/dice
+    restart: always
+    ports:
+      - "5007:5007"
 
   score_service:
     build: ./atomic_services/score
     restart: always
-    depends_on:
-      mysql:
-        condition: service_healthy
     environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/score_db
+      DATABASE_URL: mysql+mysqlconnector://user:password@mysql/score_db
     ports:
-      - "5015:5015"
+      - "5008:5008"
+    depends_on:
+      - mysql
 
   activity_log_service:
     build: ./atomic_services/activity_log
     restart: always
-    depends_on:
-      mysql:
-        condition: service_healthy
     environment:
-      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/activity_log_db
+      DATABASE_URL: mysql+mysqlconnector://user:password@mysql/activity_log_db
     ports:
       - "5013:5013"
+    depends_on:
+      - mysql
 
   fight_enemy_service:
     build: ./composite_services/fight_enemy
     restart: always
+    environment:
+      PLAYER_SERVICE_URL: http://player_service:5000
+      ENEMY_SERVICE_URL: http://enemy_service:5005
+      DICE_SERVICE_URL: http://dice_service:5007
+      ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+    ports:
+      - "5009:5009"
     depends_on:
       - player_service
       - enemy_service
       - activity_log_service
-    environment:
-      - PLAYER_SERVICE_URL=http://player_service:5000
-      - ENEMY_SERVICE_URL=http://enemy_service:5005
-      - DICE_SERVICE_URL=http://dice_service:5007
-      - SCORE_SERVICE_URL=http://score_service:5015
-      - ACTIVITY_LOG_SERVICE_URL=http://activity_log_service:5013
-    ports:
-      - "5008:5008"
+      - dice_service
 
   entering_room_service:
     build: ./composite_services/entering_room
     restart: always
+    environment:
+      PLAYER_SERVICE_URL: http://player_service:5000
+      ENEMY_SERVICE_URL: http://enemy_service:5005
+      FIGHT_ENEMY_SERVICE_URL: http://fight_enemy_service:5008
+      ITEM_SERVICE_URL: http://item_service:5002
+      ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+    ports:
+      - "5011:5011"
     depends_on:
       - player_service
       - enemy_service
       - fight_enemy_service
+      - item_service
       - activity_log_service
-    environment:
-      - PLAYER_SERVICE_URL=http://player_service:5000
-      - ENEMY_SERVICE_URL=http://enemy_service:5005
-      - ITEM_SERVICE_URL=http://item_service:5002
-      - ACTIVITY_LOG_SERVICE_URL=http://activity_log_service:5013
-      - COMBAT_SERVICE_URL=http://fight_enemy_service:5008
-    ports:
-      - "5011:5011"
 
   manage_game_service:
     build: ./composite_services/manage_game
     restart: always
+    environment:
+      PLAYER_SERVICE_URL: http://player_service:5000
+      ENEMY_SERVICE_URL: http://enemy_service:5005
+      ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+    ports:
+      - "5014:5014"
     depends_on:
       - player_service
       - enemy_service
       - activity_log_service
-    environment:
-      - PLAYER_SERVICE_URL=http://player_service:5000
-      - ENEMY_SERVICE_URL=http://enemy_service:5005
-      - ACTIVITY_LOG_SERVICE_URL=http://activity_log_service:5013
-    ports:
-      - "5014:5014"
 
   open_inventory_service:
     build: ./composite_services/open_inventory
     restart: always
-    depends_on:
-      - player_service
-      - inventory_service
     environment:
-      - INVENTORY_SERVICE_URL=http://inventory_service:5001
-      - ITEM_SERVICE_URL=http://item_service:5002
+      INVENTORY_SERVICE_URL: http://inventory_service:5001
+      ITEM_SERVICE_URL: http://item_service:5002
     ports:
       - "5010:5010"
+    depends_on:
+      - inventory_service
+      - item_service
+
+  calculate_score_service:
+    build: ./composite_services/calculate_score
+    restart: always
+    environment:
+      SCORE_SERVICE_URL: http://score_service:5008
+    ports:
+      - "5015:5015"
+    depends_on:
+      - score_service
 
   web_app:
     build: ./web
     restart: always
     ports:
       - "5050:5050"
-    depends_on:
-      - player_service
-      - enemy_service
-      - inventory_service
-      - score_service
-      - activity_log_service
-      - character_service
     environment:
-      - SELECT_CHARACTER_URL=http://player_service:5000/select_character
-      - ROOM_SERVICE_URL=http://entering_room_service:5011/room
-      - COMBAT_SERVICE_URL=http://fight_enemy_service:5008/combat
+      PLAYER_SERVICE_URL: http://player_service:5000
+      ENTERING_ROOM_SERVICE_URL: http://entering_room_service:5011
+      FIGHT_ENEMY_SERVICE_URL: http://fight_enemy_service:5008
+      INVENTORY_SERVICE_URL: http://open_inventory_service:5010

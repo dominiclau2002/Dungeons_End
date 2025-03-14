@@ -1,80 +1,57 @@
-#atomic_services\player\app.py
 import os
-from flask import Flask,jsonify, request
-from flask_sqlalchemy import SQLAlchemy
-
+from flask import Flask, jsonify, request
+from models import db, Player, Character
 
 app = Flask(__name__)
 
-################## Use environment variables for database configuration ############################
-DATABASE_URL = os.getenv("DATABASE_URL", "mysql+mysqlconnector://user:password@mysql:3306/player_db")
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+DATABASE_URL = os.getenv("DATABASE_URL", "mysql+mysqlconnector://user:password@mysql/player_db")
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-db = SQLAlchemy(app)
+db.init_app(app)
 
-############## Define the Player db model ##############
-class PlayerModel(db.Model):
-    __tablename__ = "Player"
-    
-    PlayerID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    Name = db.Column(db.String(50), unique=True, nullable=False)
-    Health = db.Column(db.Integer,nullable=False, default=100)
-    Damage = db.Column(db.Integer, nullable=False, default=10)
-    RoomID = db.Column(db.Integer, nullable=True)
-    ItemID = db.Column(db.Integer, nullable=True)
-    
-    def to_dict(self):
-        return {
-            "PlayerID": self.PlayerID,
-            "Name": self.Name,
-            "Health": self.Health,
-            "Damage": self.Damage,
-            "RoomID": self.RoomID,
-            "ItemID": self.ItemID
-        }
-        
 with app.app_context():
     db.create_all()
-    
-@app.route("/player",methods=["POST"])
-def create_player():
-    data = request.get_json()
-    name = data.get("name", "Unknown Hero")
-    itemid = data.get("itemid") #Default to None if not provided
-    
-    player = Player(Name=name, Health=100,Damage=10,RoomID=1, ItemID=itemid)
-    db.session.add(player)
+
+# Fetch character stats
+@app.route('/character/<string:char_name>', methods=['GET'])
+def get_character(char_name):
+    character = Character.query.filter_by(name=char_name).first()
+    if not character:
+        return jsonify({"error": "Character not found"}), 404
+    return jsonify(character.to_dict())
+
+# Initialize player with selected character
+@app.route('/initialize_player', methods=['POST'])
+def initialize_player():
+    data = request.json
+    player_id = data.get("player_id")
+    character_data = data.get("character")
+
+    if not player_id or not character_data:
+        return jsonify({"error": "player_id and character data required"}), 400
+
+    new_player = Player(
+        id=player_id,
+        character_name=character_data["name"],
+        health=character_data["hp"],
+        current_room_id=1
+    )
+
+    db.session.add(new_player)
     db.session.commit()
-    
-    return jsonify({"message": "Player created", "Player": player.to_dict()}), 201
 
+    return jsonify(new_player.to_dict()), 201
 
-#### GET player details
-@app.route("/player/<int:player_id>",methods=["GET"])
+# Get player details
+@app.route('/player/<int:player_id>', methods=['GET'])
 def get_player(player_id):
-    player = PlayerModel.query.get(player_id)
-    
+    player = Player.query.get(player_id)
     if not player:
-        return jsonify({"error": "Player not found!"}), 404
-    
+        return jsonify({"error": "Player not found"}), 404
     return jsonify(player.to_dict())
-    
-if __name__ == "__main__":
-    app.run(host='0.0.0.0',port=5000,debug=True)
-    
-#### PUT (Update player health, items, etc.)
-@app.route("/player/<int:player_id>", methods=["PUT"])
-def update_player(player_id):
-    player = PlayerModel.query.get(player_id)
-    if not player:
-        return jsonify({"error": "Player not found!"}), 404
 
-    data = request.get_json()
-    if "health" in data:
-        player.Health = data["health"]
-    if "itemid" in data:
-        player.ItemID = data["itemid"]
-
-    db.session.commit()
-    return jsonify({"message": "Player updated", "Player": player.to_dict()}), 200
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(host="0.0.0.0", port=5000, debug=True)

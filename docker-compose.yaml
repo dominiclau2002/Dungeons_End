@@ -14,7 +14,7 @@ services:
       MYSQL_USER: user
       MYSQL_PASSWORD: password
     ports:
-      - "3306:3306"
+      - "3307:3306"
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
@@ -25,14 +25,28 @@ services:
       PMA_HOST: mysql
       MYSQL_ROOT_PASSWORD: rootpass
 
+  character_service:
+    build: ./atomic_services/character
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/character_db
+    ports:
+      - "5018:5018"
+
   player_service:
     build: ./atomic_services/player
     restart: always
     depends_on:
       mysql:
         condition: service_healthy
+      character_service:
+        condition: service_started
     environment:
       - DATABASE_URL=mysql+mysqlconnector://user:password@mysql:3306/player_db
+      - CHARACTER_SERVICE_URL=http://character_service:5018
     ports:
       - "5000:5000"
 
@@ -80,6 +94,65 @@ services:
     ports:
       - "5013:5013"
 
+  fight_enemy_service:
+    build: ./composite_services/fight_enemy
+    restart: always
+    depends_on:
+      - player_service
+      - enemy_service
+      - activity_log_service
+    environment:
+      - PLAYER_SERVICE_URL=http://player_service:5000
+      - ENEMY_SERVICE_URL=http://enemy_service:5005
+      - DICE_SERVICE_URL=http://dice_service:5007
+      - SCORE_SERVICE_URL=http://score_service:5015
+      - ACTIVITY_LOG_SERVICE_URL=http://activity_log_service:5013
+    ports:
+      - "5008:5008"
+
+  entering_room_service:
+    build: ./composite_services/entering_room
+    restart: always
+    depends_on:
+      - player_service
+      - enemy_service
+      - fight_enemy_service
+      - activity_log_service
+    environment:
+      - PLAYER_SERVICE_URL=http://player_service:5000
+      - ENEMY_SERVICE_URL=http://enemy_service:5005
+      - ITEM_SERVICE_URL=http://item_service:5002
+      - ACTIVITY_LOG_SERVICE_URL=http://activity_log_service:5013
+      - COMBAT_SERVICE_URL=http://fight_enemy_service:5008
+    ports:
+      - "5011:5011"
+
+  manage_game_service:
+    build: ./composite_services/manage_game
+    restart: always
+    depends_on:
+      - player_service
+      - enemy_service
+      - activity_log_service
+    environment:
+      - PLAYER_SERVICE_URL=http://player_service:5000
+      - ENEMY_SERVICE_URL=http://enemy_service:5005
+      - ACTIVITY_LOG_SERVICE_URL=http://activity_log_service:5013
+    ports:
+      - "5014:5014"
+
+  open_inventory_service:
+    build: ./composite_services/open_inventory
+    restart: always
+    depends_on:
+      - player_service
+      - inventory_service
+    environment:
+      - INVENTORY_SERVICE_URL=http://inventory_service:5001
+      - ITEM_SERVICE_URL=http://item_service:5002
+    ports:
+      - "5010:5010"
+
   web_app:
     build: ./web
     restart: always
@@ -91,7 +164,8 @@ services:
       - inventory_service
       - score_service
       - activity_log_service
+      - character_service
     environment:
       - SELECT_CHARACTER_URL=http://player_service:5000/select_character
-      - ROOM_SERVICE_URL=http://entering_room:5011/room
-      - COMBAT_SERVICE_URL=http://fight_enemy:5008/combat
+      - ROOM_SERVICE_URL=http://entering_room_service:5011/room
+      - COMBAT_SERVICE_URL=http://fight_enemy_service:5008/combat

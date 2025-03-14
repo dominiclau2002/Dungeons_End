@@ -1,16 +1,13 @@
-import os
+import os, json, random
 from flask import Flask, jsonify, request
-from flask_sqlalchemy import SQLAlchemy
-from enemy import Enemy, db
+from models import db, Enemy
 
 app = Flask(__name__)
 
-# ✅ Database Configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "mysql+mysqlconnector://user:password@mysql:3306/enemy_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "mysql+mysqlconnector://user:password@mysql/enemy_db")
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# ✅ Initialize Database
 db.init_app(app)
 
 with app.app_context():
@@ -18,58 +15,43 @@ with app.app_context():
 
 @app.route("/enemy/<int:room_id>", methods=["GET"])
 def get_enemy(room_id):
-    """
-    Retrieves the enemy in a given room.
-    If none exists, creates a new one.
-    """
-    enemy = Enemy.query.filter_by(RoomID=room_id).first()
-
-    if not enemy:
-        # ✅ If no enemy exists, create a new one
-        enemy = Enemy(
-            room_id=room_id,
-            name="Goblin",
-            health=30,
-            attacks={"Slash": (5, 12), "Bite": (3, 8)},
-            loot=["Gold Coin", "Rusty Dagger"],
-        )
-        db.session.add(enemy)
-        db.session.commit()
-
-    return jsonify(enemy.to_dict())
+    enemy = Enemy.query.filter_by(room_id=room_id).first()
+    if enemy:
+        return jsonify(enemy.to_dict()), 200
+    return jsonify({"error": "Enemy not found"}), 404
 
 @app.route("/enemy/<int:room_id>/attack", methods=["GET"])
 def enemy_attack(room_id):
-    """
-    The enemy performs an attack.
-    """
-    enemy = Enemy.query.filter_by(RoomID=room_id).first()
-
+    enemy = Enemy.query.filter_by(room_id=room_id).first()
     if not enemy:
-        return jsonify({"error": "No enemy found in this room"}), 404
+        return jsonify({"error": "No enemy found"}), 404
 
-    return jsonify(enemy.attack())
+    attacks = json.loads(enemy.attacks)
+    attack_name, damage_range = random.choice(list(attacks.items()))
+    damage = random.randint(*damage_range)
+    return jsonify({"attack": attack_name, "damage": damage})
 
 @app.route("/enemy/<int:room_id>/damage", methods=["POST"])
 def damage_enemy(room_id):
-    """
-    Player attacks an enemy in a room.
-    """
-    enemy = Enemy.query.filter_by(RoomID=room_id).first()
-
+    enemy = Enemy.query.filter_by(room_id=room_id).first()
     if not enemy:
-        return jsonify({"error": "No enemy found in this room"}), 404
+        return jsonify({"error": "Enemy not found"}), 404
 
-    data = request.get_json()
-    damage = data.get("damage", 0)
+    damage = request.json.get("damage", 0)
+    enemy.health -= damage
 
-    result = enemy.take_damage(damage)
+    if enemy.health <= 0:
+        loot = json.loads(enemy.loot)
+        db.session.delete(enemy)
+        db.session.commit()
+        return jsonify({"message": "Enemy defeated!", "loot": loot})
 
-    if enemy.Health <= 0:
-        db.session.delete(enemy)  # Remove defeated enemy from the database
     db.session.commit()
+    return jsonify({"message": "Enemy damaged", "remaining_health": enemy.health})
 
-    return jsonify(result)
-
-if __name__ == "__main__":
+if __name__ == '__main__':
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+    db.init_app(app)
+    with app.app_context():
+        db.create_all()
     app.run(host="0.0.0.0", port=5005, debug=True)

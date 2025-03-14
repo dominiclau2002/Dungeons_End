@@ -105,7 +105,7 @@ services:
       - rabbitmq
 
   fight_enemy_service:
-    build: ./composite_services/
+    build: ./composite_services/fight_enemy
     restart: always
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
@@ -121,7 +121,7 @@ services:
       - dice_service
 
   entering_room_service:
-    build: ./composite_services/
+    build: ./composite_services/entering_room
     restart: always
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
@@ -139,7 +139,7 @@ services:
       - activity_log_service
 
   manage_game_service:
-    build: ./composite_services/
+    build: ./composite_services/manage_game
     restart: always
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
@@ -153,7 +153,7 @@ services:
       - activity_log_service
 
   open_inventory_service:
-    build: ./composite_services/
+    build: ./composite_services/open_inventory
     restart: always
     environment:
       INVENTORY_SERVICE_URL: http://inventory_service:5001
@@ -165,7 +165,7 @@ services:
       - item_service
 
   calculate_score_service:
-    build: ./composite_services/
+    build: ./composite_services/calculate_score
     restart: always
     environment:
       SCORE_SERVICE_URL: http://score_service:5008
@@ -173,7 +173,15 @@ services:
       - "5015:5015"
     depends_on:
       - score_service
-
+  select_character_service:
+    build: ./composite_services/select_character
+    restart: always
+    environment:
+      PLAYER_SERVICE_URL: http://player_service:5000
+    ports:
+      - "5017:5017"
+    depends_on:
+      - player_service
   web_app:
     build: ./web
     restart: always

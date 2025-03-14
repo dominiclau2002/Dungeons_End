@@ -10,19 +10,34 @@ ENEMY_SERVICE_URL = os.getenv("ENEMY_SERVICE_URL", "http://enemy_service:5005")
 ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 
 @app.route('/game/reset/<int:player_id>', methods=['POST'])
-def reset_game(player_id):
+def reset_character_progress(player_id):
     """
-    Resets the selected character's game progress.
-    - Resets player health and room location
+    Resets the selected character's progress without deleting the character.
+    - Resets player health based on character class
+    - Moves them back to the starting room
+    - Clears their inventory
     - Resets all enemies
-    - Clears the activity log
+    - Clears activity log
     """
-    # ✅ Step 1: Reset Selected Character (Keeps Other Profiles Intact)
-    reset_player_response = requests.put(f"{PLAYER_SERVICE_URL}/player/{player_id}", json={"health": 100, "room_id": 1})
-    if reset_player_response.status_code != 200:
-        return jsonify({"error": "Failed to reset player"}), 500
 
-    # ✅ Step 2: Reset All Enemies (Global Reset)
+    # Fetch player details to reset class-based health
+    player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+    if player_response.status_code != 200:
+        return jsonify({"error": "Player not found"}), 404
+
+    player = player_response.json()
+    class_health = {"Warrior": 120, "Rogue": 90, "Cleric": 100, "Ranger": 95}
+    base_health = class_health.get(player["Name"], 100)  # Default to 100 if class not found
+
+    # ✅ Step 1: Reset Player Progress
+    reset_player_response = requests.put(
+        f"{PLAYER_SERVICE_URL}/player/{player_id}", 
+        json={"health": base_health, "room_id": 1, "itemid": None}
+    )
+    if reset_player_response.status_code != 200:
+        return jsonify({"error": "Failed to reset player progress"}), 500
+
+    # ✅ Step 2: Reset All Enemies
     enemy_reset_status = []
     enemy_list_response = requests.get(f"{ENEMY_SERVICE_URL}/enemies")
 
@@ -35,41 +50,17 @@ def reset_game(player_id):
             else:
                 enemy_reset_status.append(f"Failed to reset enemy in Room {enemy['RoomID']}")
 
-    # ✅ Step 3: Clear Activity Log (Global Reset)
+    # ✅ Step 3: Clear Activity Log
     clear_log_response = requests.delete(f"{ACTIVITY_LOG_SERVICE_URL}/log/clear")
     if clear_log_response.status_code != 200:
         return jsonify({"error": "Failed to clear activity log"}), 500
 
     return jsonify({
-        "message": f"Game has been reset for player {player_id}!",
+        "message": f"Progress reset for player {player_id}. Character remains unchanged.",
         "player_status": reset_player_response.json(),
         "enemies_reset": enemy_reset_status,
         "logs_cleared": True
     })
-
-@app.route('/game/select/<int:player_id>', methods=['GET'])
-def select_character(player_id):
-    """
-    Loads the selected player's character profile.
-    """
-    player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
-    
-    if player_response.status_code != 200:
-        return jsonify({"error": "Player not found!"}), 404
-
-    return jsonify(player_response.json())
-
-@app.route('/game/characters', methods=['GET'])
-def list_characters():
-    """
-    Lists all available character profiles.
-    """
-    player_list_response = requests.get(f"{PLAYER_SERVICE_URL}/players")
-
-    if player_list_response.status_code != 200:
-        return jsonify({"error": "Could not retrieve players."}), 500
-
-    return jsonify(player_list_response.json())
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5014, debug=True)

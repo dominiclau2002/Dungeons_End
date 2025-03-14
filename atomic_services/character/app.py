@@ -12,14 +12,14 @@ db.init_app(app)
 
 def seed_characters():
     characters = [
-        {"name": "Warrior", "hp": 100, "skill_description": "Berserker attack deals extra damage based on missing HP."},
-        {"name": "Cleric", "hp": 80, "skill_description": "Heals for 15 HP if dice roll succeeds."},
+        {"name": "Warrior", "hp": 100, "skill_description": "Berserker attack: Damage scales with missing HP."},
+        {"name": "Cleric", "hp": 80, "skill_description": "Heal: Restores 15 HP if dice roll succeeds."},
         {"name": "Rogue", "hp": 75, "skill_description": "Backstab: Double damage if dice roll succeeds."},
         {"name": "Witch", "hp": 70, "skill_description": "Poisons enemy for damage over time if dice roll succeeds."}
     ]
 
     if Character.query.first() is None:
-        for char_data in default_characters:
+        for char_data in characters:  # ✅ Corrected clearly here
             character = Character(**char_data)
             db.session.add(character)
         db.session.commit()
@@ -28,7 +28,6 @@ def seed_characters():
         print("Characters already seeded.")
 
 with app.app_context():
-    db.init_app(app)
     db.create_all()
     seed_characters()
 
@@ -45,4 +44,8 @@ def get_all_characters():
     return jsonify([char.to_dict() for char in characters])
 
 if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
+        seed_characters()
+
     app.run(host="0.0.0.0", port=5003, debug=True)

@@ -20,10 +20,10 @@ def log_activity():
     action = data.get("action")
 
     if not player_id or not action:
-        return jsonify({"error": "Player ID and action are required"}), 400
+        return jsonify({"error": "player_id and action required"}), 400
 
     new_log = ActivityLog(player_id=player_id, action=action)
-    db.session.add(new_player)
+    db.session.add(new_log)  # ✅ Fixed clearly here
     db.session.commit()
 
     return jsonify({"message": "Activity logged", "log": new_log.to_dict()}), 201
@@ -37,7 +37,9 @@ def get_logs(player_id):
 def clear_logs():
     db.session.query(ActivityLog).delete()
     db.session.commit()
-    return jsonify({"message": "Activity logs cleared!"})
+    return jsonify({"message": "Activity log cleared!"})
 
 if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
     app.run(host="0.0.0.0", port=5013, debug=True)

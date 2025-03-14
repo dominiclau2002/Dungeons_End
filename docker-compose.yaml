@@ -1,11 +1,73 @@
 version: '3.8'
 
 services:
+  db_player:
+    image: mysql:latest
+    container_name: db_player
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: player_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    healthcheck:  # ✅ Ensure MySQL is ready before starting services
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - db_data_player:/var/lib/mysql
+
+  db_inventory:
+    image: mysql:latest
+    container_name: db_inventory
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: inventory_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3307:3306"
+    healthcheck:  # ✅ Ensure MySQL is ready before starting services
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - db_data_inventory:/var/lib/mysql
+
+  db_item:
+    image: mysql:latest
+    container_name: db_item
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: item_db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3308:3306"
+    healthcheck:  # ✅ Ensure MySQL is ready before starting services
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - db_data_item:/var/lib/mysql
+
   player:
     build: 
       context: .
       dockerfile: ./atomic_services/player/Dockerfile
     container_name: player
+    depends_on:
+      db_player:
+        condition: service_healthy  # ✅ Wait until MySQL is ready
+    environment:
+      DATABASE_URL: mysql+mysqlconnector://user:password@db_player/player_db
     ports: 
       - "5000:5000"
 
@@ -14,6 +76,11 @@ services:
       context: .
       dockerfile: ./atomic_services/inventory/Dockerfile
     container_name: inventory
+    depends_on:
+      db_inventory:
+        condition: service_healthy  # ✅ Wait until MySQL is ready
+    environment:
+      DATABASE_URL: mysql+mysqlconnector://user:password@db_inventory/inventory_db
     ports:
       - "5001:5001"
 
@@ -22,5 +89,15 @@ services:
       context: .
       dockerfile: ./atomic_services/item/Dockerfile
     container_name: item
+    depends_on:
+      db_item:
+        condition: service_healthy  # ✅ Wait until MySQL is ready
+    environment:
+      DATABASE_URL: mysql+mysqlconnector://user:password@db_item/item_db
     ports:
       - "5002:5002"
+
+volumes:
+  db_data_player:
+  db_data_inventory:
+  db_data_item:

@@ -2,7 +2,7 @@
 import requests
 import random
 class Player:
-    def __init__(self, name=None):
+    def __init__(self, name=None,itemid=None):
         self.name = name if name else "Unknown Hero" #Allow player to set name
         self.health = 100 #Set default health to 100
         inventory_response = requests.get("http://inventory:5001/inventory")#Start with empty Inventory, called from inventory.py, initializes an Inventory object
@@ -11,17 +11,28 @@ class Player:
         else:
             self.inventory = []  # Default to empty if service fails
         self.stats = {"strength": random.randint(5,10), "agility": random.randint(5,10), "intelligence": random.randint(5,10)} #Player will start with randomized stats 
-        self.weapon = "None" #Start with no weapon
-        self.armour = "None" #Start with no armour
+        self.itemid = itemid #Start with no item
 
     def get_player_info(self):
+        
+        item_details = None
+        if self.itemid:
+            # Fetch item details from item microservice
+            try:
+                item_response = requests.get(f"http://item:5002/item/{self.itemid}", timeout=3)
+                if item_response.status_code == 200:
+                    item_details = item_response.json()  # ✅ Parse JSON properly
+                else:
+                    item_details = {"error": "Item not found"}
+            except requests.exceptions.RequestException:
+                item_details = {"error": "Item service unreachable"}
+                
         return {
             "Player Name": self.name,
             "Current Health": self.health,
             "Current Inventory": f"You have {len(self.inventory)} items in your inventory.",
             "Stats": self.stats,
-            "Weapon": self.weapon,
-            "Armour": self.armour
+            "Item": item_details if item_details else "None"
         }
 
     # def increase_health(self, amount):

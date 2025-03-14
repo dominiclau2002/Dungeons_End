@@ -1,6 +1,12 @@
 version: '3.8'
 
 services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    restart: always
+    ports:
+      - "5672:5672"      # RabbitMQ default port
+      - "15672:15672"    # Management UI (optional, helpful for debugging)
   mysql:
     image: mysql:latest
     restart: always
@@ -98,6 +104,7 @@ services:
       - "5013:5013"
     depends_on:
       - mysql
+      - rabbitmq
 
   fight_enemy_service:
     build: ./composite_services/fight_enemy

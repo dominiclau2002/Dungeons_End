@@ -1,20 +1,13 @@
-# activity log microservice dockerfile
-# Use official Python image
-FROM python:3.12
+#activitylog dockerfile
+FROM python:3.11-slim
 
-# Set working directory inside the container
 WORKDIR /app
+COPY . /app
 
-# Copy requirements and install dependencies
-COPY requirements.txt /app/
-RUN python -m pip install --no-cache-dir -r /app/requirements.txt
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
-# Copy necessary files
-COPY app.py /app/
-COPY activity_log.py /app/
-
-# Expose Flask port
 EXPOSE 5013
 
-# Start the activity log service
-CMD ["python", "/app/app.py"]
+# Run app.py and RabbitMQ consumer at the same time
+CMD ["sh", "-c", "python rabbitmq_consumer.py & python app.py"]

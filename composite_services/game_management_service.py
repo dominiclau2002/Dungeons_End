@@ -1,86 +1,75 @@
-from flask import Flask, jsonify
-from atomic_services.player import Player
-from atomic_services.enemy import enemy_instances
-from composite_services.activity_log_service import activity_log
+from flask import Flask, jsonify, request
+import requests
+import os
 
 app = Flask(__name__)
 
-# Simulated player instance (Replace with real player management later)
-player = Player(name="Hero")
+# ✅ Microservice URLs from environment variables
+PLAYER_SERVICE_URL = os.getenv("PLAYER_SERVICE_URL", "http://player_service:5000")
+ENEMY_SERVICE_URL = os.getenv("ENEMY_SERVICE_URL", "http://enemy_service:5005")
+ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 
-@app.route('/game/restart', methods=['POST'])
-def restart_game():
+@app.route('/game/reset/<int:player_id>', methods=['POST'])
+def reset_game(player_id):
     """
-    Resets the game:
-    - Resets player health
+    Resets the selected character's game progress.
+    - Resets player health and room location
     - Resets all enemies
-    - Clears activity logs
+    - Clears the activity log
     """
-    # Reset Player Health
-    player.health = 100  # Full health
+    # ✅ Step 1: Reset Selected Character (Keeps Other Profiles Intact)
+    reset_player_response = requests.put(f"{PLAYER_SERVICE_URL}/player/{player_id}", json={"health": 100, "room_id": 1})
+    if reset_player_response.status_code != 200:
+        return jsonify({"error": "Failed to reset player"}), 500
 
-    # Reset All Enemies
-    for room_name in enemy_instances.keys():
-        enemy_instances[room_name].health = 30  # Reset enemy health (customize per enemy)
+    # ✅ Step 2: Reset All Enemies (Global Reset)
+    enemy_reset_status = []
+    enemy_list_response = requests.get(f"{ENEMY_SERVICE_URL}/enemies")
 
-    # Clear Activity Log
-    activity_log.clear()  # Clears all logged actions
+    if enemy_list_response.status_code == 200:
+        enemies = enemy_list_response.json()
+        for enemy in enemies:
+            reset_enemy_response = requests.put(f"{ENEMY_SERVICE_URL}/enemy/{enemy['RoomID']}/reset", json={"health": 30})
+            if reset_enemy_response.status_code == 200:
+                enemy_reset_status.append(f"Enemy in Room {enemy['RoomID']} reset")
+            else:
+                enemy_reset_status.append(f"Failed to reset enemy in Room {enemy['RoomID']}")
+
+    # ✅ Step 3: Clear Activity Log (Global Reset)
+    clear_log_response = requests.delete(f"{ACTIVITY_LOG_SERVICE_URL}/log/clear")
+    if clear_log_response.status_code != 200:
+        return jsonify({"error": "Failed to clear activity log"}), 500
 
     return jsonify({
-        "message": "Game has been restarted!",
-        "player_health": player.health,
-        "enemies_reset": list(enemy_instances.keys()),  # Shows which enemies were reset
+        "message": f"Game has been reset for player {player_id}!",
+        "player_status": reset_player_response.json(),
+        "enemies_reset": enemy_reset_status,
         "logs_cleared": True
     })
 
-@app.route('/game/save', methods=['POST'])
-def save_game():
+@app.route('/game/select/<int:player_id>', methods=['GET'])
+def select_character(player_id):
     """
-    Saves the current game state (player stats, enemy states, logs).
+    Loads the selected player's character profile.
     """
-    game_state = {
-        "player": {
-            "name": player.name,
-            "health": player.health
-        },
-        "enemies": {
-            room: enemy_instances[room].health for room in enemy_instances
-        },
-        "logs": activity_log  # Current activity log
-    }
+    player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+    
+    if player_response.status_code != 200:
+        return jsonify({"error": "Player not found!"}), 404
 
-    # In a real system, this would be saved to a database
-    with open("saved_game.json", "w") as file:
-        import json
-        json.dump(game_state, file)
+    return jsonify(player_response.json())
 
-    return jsonify({"message": "Game progress saved!"})
-
-@app.route('/game/load', methods=['POST'])
-def load_game():
+@app.route('/game/characters', methods=['GET'])
+def list_characters():
     """
-    Loads the saved game state.
+    Lists all available character profiles.
     """
-    import json
-    try:
-        with open("saved_game.json", "r") as file:
-            game_state = json.load(file)
+    player_list_response = requests.get(f"{PLAYER_SERVICE_URL}/players")
 
-        # Restore Player
-        player.health = game_state["player"]["health"]
+    if player_list_response.status_code != 200:
+        return jsonify({"error": "Could not retrieve players."}), 500
 
-        # Restore Enemies
-        for room, health in game_state["enemies"].items():
-            if room in enemy_instances:
-                enemy_instances[room].health = health 
-
-        # Restore Activity Logs
-        global activity_log
-        activity_log = game_state["logs"]
-
-        return jsonify({"message": "Game progress loaded!", "player_health": player.health})
-    except FileNotFoundError:
-        return jsonify({"message": "No saved game found!"}), 404
+    return jsonify(player_list_response.json())
 
 if __name__ == '__main__':
-    app.run(port=5009, debug=True)
+    app.run(host="0.0.0.0", port=5014, debug=True)

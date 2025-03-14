@@ -46,43 +46,27 @@ def start_combat(room_id):
 
 @app.route('/combat/attack/<int:room_id>', methods=['POST'])
 def player_attack(room_id):
-    """
-    The player attacks the enemy. Uses dice roll to determine damage.
-    """
     player_id = request.json.get("player_id")
+    use_skill = request.json.get("use_skill", False)
+
     if not player_id:
         return jsonify({"error": "Player ID is required"}), 400
 
-    # ✅ Fetch enemy details
-    enemy_response = requests.get(f"{ENEMY_SERVICE_URL}/enemy/{room_id}")
-    if enemy_response.status_code != 200:
-        return jsonify({"error": "No enemy found in this room"}), 404
+    # ✅ Fetch player data
+    player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+    player = player_response.json()
 
-    enemy = enemy_response.json()
+    # ✅ Skill pre-roll check
+    if use_skill:
+        skill_roll = requests.get(f"{DICE_SERVICE_URL}/roll?sides=6").json()["results"][0]
+        if skill_roll < 3:
+            return jsonify({"message": "Skill failed! Turn wasted."})
 
-    # ✅ Roll for player attack damage
-    dice_response = requests.get(f"{DICE_SERVICE_URL}/roll?sides=6")
-    damage = dice_response.json()["results"][0]
-
-    # ✅ Attack enemy
+    # ✅ Roll for damage and attack enemy
+    damage = requests.get(f"{DICE_SERVICE_URL}/roll?sides=6").json()["results"][0]
     attack_response = requests.post(f"{ENEMY_SERVICE_URL}/enemy/{room_id}/damage", json={"damage": damage})
 
-    # ✅ If enemy is defeated, add score
-    enemy_after_attack = attack_response.json()
-    if "loot" in enemy_after_attack:
-        score_data = {
-            "player_id": player_id,
-            "points": 50,  # Example points for winning combat
-            "reason": "combat"
-        }
-        requests.post(f"{SCORE_SERVICE_URL}/score/add", json=score_data)
-
-    return jsonify({
-        "message": f"You attacked {enemy['Name']} for {damage} damage!",
-        "damage_dealt": damage,
-        "combat_over": "loot" in enemy_after_attack
-    })
-
+    return jsonify({"message": f"You attacked for {damage} damage!"})
 @app.route('/combat/enemy-turn/<int:room_id>', methods=['POST'])
 def enemy_attack(room_id):
     """

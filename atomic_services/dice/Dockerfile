@@ -1,17 +1,19 @@
-# Use Python official image
-FROM python:3.9
+# Use official Python image
+FROM python:3.12
 
-# Set working directory
+# Set working directory inside the container
 WORKDIR /app
 
-# Copy files
-COPY app.py dice.py requirements.txt ./
+# Copy requirements and install dependencies
+COPY requirements.txt /app/
+RUN python -m pip install --no-cache-dir -r /app/requirements.txt
 
-# Install dependencies
-RUN pip install -r requirements.txt
+# Copy necessary files
+COPY app.py /app/
+COPY dice.py /app/
 
-# Expose port
+# Expose Flask port
 EXPOSE 5007
 
-# Run the Flask app
-CMD ["python", "app.py"]
+# Start the dice service
+CMD ["python", "/app/app.py"]

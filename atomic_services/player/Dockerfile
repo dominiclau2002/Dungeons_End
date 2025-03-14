@@ -5,17 +5,18 @@ FROM python:3.12
 WORKDIR /app
 
 # Copy the project-wide requirements file 
-COPY ./requirements.txt /app/
+COPY requirements.txt /app/
+
 
 # Install dependencies
-RUN python -m pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir -r /app/requirements.txt
 
-#Copy the necessary files for player microservice
-COPY ./atomic_services/player/app.py /app/
-COPY ./atomic_services/player/player.py /app/
+# Copy only necessary files for the player microservice
+COPY app.py /app/
+COPY player.py /app/
 
-#Expose Flask Port
+# Expose Flask Port
 EXPOSE 5000
 
 # Set the command to run the player service
-CMD ["python", "app.py"]
+CMD ["python", "/app/app.py"]

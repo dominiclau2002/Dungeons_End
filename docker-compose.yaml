@@ -1,103 +1,78 @@
 version: '3.8'
 
 services:
-  db_player:
-    image: mysql:latest
-    container_name: db_player
+  mysql:
+    image: mysql:8
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: player_db
       MYSQL_USER: user
       MYSQL_PASSWORD: password
     ports:
       - "3306:3306"
-    healthcheck:  # ✅ Ensure MySQL is ready before starting services
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      retries: 5
-      start_period: 20s
-    volumes:
-      - db_data_player:/var/lib/mysql
 
-  db_inventory:
-    image: mysql:latest
-    container_name: db_inventory
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
     restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: inventory_db
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
     ports:
-      - "3307:3306"
-    healthcheck:  # ✅ Ensure MySQL is ready before starting services
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      retries: 5
-      start_period: 20s
-    volumes:
-      - db_data_inventory:/var/lib/mysql
-
-  db_item:
-    image: mysql:latest
-    container_name: db_item
-    restart: always
+      - "8080:80"
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: item_db
-      MYSQL_USER: user
-      MYSQL_PASSWORD: password
+      PMA_HOST: mysql
+      MYSQL_ROOT_PASSWORD: rootpass
+
+  player_service:
+    build: ./atomic_services/player
     ports:
-      - "3308:3306"
-    healthcheck:  # ✅ Ensure MySQL is ready before starting services
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      retries: 5
-      start_period: 20s
-    volumes:
-      - db_data_item:/var/lib/mysql
-
-  player:
-    build: 
-      context: .
-      dockerfile: ./atomic_services/player/Dockerfile
-    container_name: player
-    depends_on:
-      db_player:
-        condition: service_healthy  # ✅ Wait until MySQL is ready
-    environment:
-      DATABASE_URL: mysql+mysqlconnector://user:password@db_player/player_db
-    ports: 
       - "5000:5000"
-
-  inventory:
-    build:
-      context: .
-      dockerfile: ./atomic_services/inventory/Dockerfile
-    container_name: inventory
     depends_on:
-      db_inventory:
-        condition: service_healthy  # ✅ Wait until MySQL is ready
+      - mysql
     environment:
-      DATABASE_URL: mysql+mysqlconnector://user:password@db_inventory/inventory_db
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql/player_db
+
+  enemy_service:
+    build: ./atomic_services/enemy
+    ports:
+      - "5005:5005"
+    depends_on:
+      - mysql
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql/enemy_db
+
+  inventory_service:
+    build: ./atomic_services/inventory
     ports:
       - "5001:5001"
-
-  item:
-    build: 
-      context: .
-      dockerfile: ./atomic_services/item/Dockerfile
-    container_name: item
     depends_on:
-      db_item:
-        condition: service_healthy  # ✅ Wait until MySQL is ready
+      - mysql
     environment:
-      DATABASE_URL: mysql+mysqlconnector://user:password@db_item/item_db
-    ports:
-      - "5002:5002"
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql/inventory_db
 
-volumes:
-  db_data_player:
-  db_data_inventory:
-  db_data_item:
+  score_service:
+    build: ./atomic_services/score
+    ports:
+      - "5015:5015"
+    depends_on:
+      - mysql
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql/score_db
+
+  activity_log_service:
+    build: ./atomic_services/activity_log
+    ports:
+      - "5013:5013"
+    depends_on:
+      - mysql
+    environment:
+      - DATABASE_URL=mysql+mysqlconnector://user:password@mysql/activity_log_db
+
+  web_app:
+    build: ./web
+    ports:
+      - "5050:5050"
+    depends_on:
+      - player_service
+      - enemy_service
+      - inventory_service
+      - score_service
+      - activity_log_service

@@ -1,81 +1,74 @@
-#\text-game\atomic_services\player.py
-import requests
-import random
-class Player:
-    def __init__(self, name=None,itemid=None):
-        self.name = name if name else "Unknown Hero" #Allow player to set name
-        self.health = 100 #Set default health to 100
-        inventory_response = requests.get("http://inventory:5001/inventory")#Start with empty Inventory, called from inventory.py, initializes an Inventory object
-        if inventory_response.status_code == 200:
-            self.inventory = inventory_response.json().get("Inventory Status", [])  # Extract inventory contents
-        else:
-            self.inventory = []  # Default to empty if service fails
-        self.stats = {"strength": random.randint(5,10), "agility": random.randint(5,10), "intelligence": random.randint(5,10)} #Player will start with randomized stats 
-        self.itemid = itemid #Start with no item
+from flask import Flask, jsonify, request
+from flask_sqlalchemy import SQLAlchemy
+import os
 
-    def get_player_info(self):
-        
-        item_details = None
-        if self.itemid:
-            # Fetch item details from item microservice
-            try:
-                item_response = requests.get(f"http://item:5002/item/{self.itemid}", timeout=3)
-                if item_response.status_code == 200:
-                    item_details = item_response.json()  # ✅ Parse JSON properly
-                else:
-                    item_details = {"error": "Item not found"}
-            except requests.exceptions.RequestException:
-                item_details = {"error": "Item service unreachable"}
-                
+app = Flask(__name__)
+
+# ✅ Database Configuration
+DATABASE_URL = os.getenv("DATABASE_URL", "mysql+mysqlconnector://user:password@mysql/player_db")
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
+
+# ✅ Define Character and Player Tables
+class Character(db.Model):
+    __tablename__ = "Characters"
+
+    CharacterID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    Name = db.Column(db.String(50), unique=True, nullable=False)
+    HP = db.Column(db.Integer, nullable=False)
+    SkillDescription = db.Column(db.String(255), nullable=False)
+
+    def to_dict(self):
         return {
-            "Player Name": self.name,
-            "Current Health": self.health,
-            "Current Inventory": f"You have {len(self.inventory)} items in your inventory.",
-            "Stats": self.stats,
-            "Item": item_details if item_details else "None"
+            "Name": self.Name,
+            "HP": self.HP,
+            "SkillDescription": self.SkillDescription
         }
 
-    # def increase_health(self, amount):
-    #     self.health += amount
-    #     return {"message": f"You regained {amount} health. Health increased to {self.health}."}
-    
-    # def decrease_health(self, amount):
-    #     self.health -= amount
-    #     return {"message": f"You took {amount} damage. Health decreased to {self.health}."}
+class Player(db.Model):
+    __tablename__ = "Players"
 
-    # def player_enters_room(self, room_name):
-    #     return {"message": f"Player entered {room_name}."}
+    PlayerID = db.Column(db.Integer, primary_key=True)
+    CharacterName = db.Column(db.String(50), db.ForeignKey("Characters.Name"), nullable=False)
+    HP = db.Column(db.Integer, nullable=False)
+    RoomID = db.Column(db.Integer, default=1)  # Start in Room 1
 
-    # def player_exits_room(self, room_name):
-    #     return {"message": f"Player exited {room_name}."}
-    
-    # def equip_weapon(self, weapon_id):
-    #     inventory_response = requests.get("http://inventory:5001/inventory")
-    #     if inventory_response.status_code == 200:
-    #         inventory = inventory_response.json().get("inventory", [])
-    #         for item in inventory:
-    #             if item["id"] == weapon_id and item["type"] == "Weapon":
-    #                 self.weapon = item["name"]
-    #                 return {"message": f"{item['name']} equipped as weapon."}
-    #     return {"error": f"Item ID {weapon_id} not found or is not a weapon."}
+    def to_dict(self):
+        return {
+            "PlayerID": self.PlayerID,
+            "CharacterName": self.CharacterName,
+            "HP": self.HP,
+            "RoomID": self.RoomID
+        }
 
-    # def equip_armour(self, armour_id):
-    #     inventory_response = requests.get("http://inventory:5001/inventory")
-    #     if inventory_response.status_code == 200:
-    #         inventory = inventory_response.json().get("inventory", [])
-    #         for item in inventory:
-    #             if item["id"] == armour_id and item["type"] == "Armour":
-    #                 self.armour = item["name"]
-    #                 return {"message": f"{item['name']} equipped as armour."}
-    #     return {"error": f"Item ID {armour_id} not found or is not armour."}
+with app.app_context():
+    db.create_all()
 
-    # def use_consumable(self, item_id):
-    #     inventory_response = requests.get("http://inventory:5001/inventory")
-    #     if inventory_response.status_code == 200:
-    #         inventory = inventory_response.json().get("inventory", [])
-    #         for item in inventory:
-    #             if item["id"] == item_id and item["type"] == "Consumable":
-    #                 self.health += 20
-    #                 requests.post("http://inventory:5001/remove", json={"id": item_id})  # Remove item from inventory
-    #                 return {"message": f"Used {item['name']}. Health increased to {self.health}."}
-    #     return {"error": f"Item ID {item_id} not found in inventory or is not a consumable."}
+# ✅ Fetch Character Stats
+@app.route('/character/<string:char_name>', methods=['GET'])
+def get_character(char_name):
+    character = Character.query.filter_by(Name=char_name).first()
+    if not character:
+        return jsonify({"error": "Character not found"}), 404
+    return jsonify(character.to_dict())
+
+# ✅ Initialize Player
+@app.route('/initialize_player', methods=['POST'])
+def initialize_player():
+    data = request.get_json()
+    player_id = data.get("player_id")
+    character = data.get("character")
+
+    if not player_id or not character:
+        return jsonify({"error": "PlayerID and character data are required"}), 400
+
+    new_player = Player(PlayerID=player_id, CharacterName=character["Name"], HP=character["HP"])
+    db.session.add(new_player)
+    db.session.commit()
+
+    return jsonify({"message": "Player initialized successfully!", "player": new_player.to_dict()}), 201
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=5000, debug=True)

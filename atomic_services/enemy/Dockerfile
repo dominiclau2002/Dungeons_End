@@ -1,17 +1,19 @@
-# Use Python official image
-FROM python:3.9
+# Use official Python image
+FROM python:3.12
 
-# Set working directory
+# Set working directory inside the container
 WORKDIR /app
 
-# Copy files
-COPY app.py enemy.py requirements.txt ./
+# Copy requirements and install dependencies
+COPY requirements.txt /app/
+RUN python -m pip install --no-cache-dir -r /app/requirements.txt
 
-# Install dependencies
-RUN pip install -r requirements.txt
+# Copy necessary files
+COPY app.py /app/
+COPY enemy.py /app/
 
-# Expose port
+# Expose Flask port
 EXPOSE 5005
 
-# Run the Flask app
-CMD ["python", "app.py"]
+# Start the enemy service
+CMD ["python", "/app/app.py"]

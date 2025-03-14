@@ -14,7 +14,6 @@ def get_db_connection():
         password="password123",  # Your MySQL password
         database="game_database"
     )
-
 # Simulated player instance (Replace with a real player management system)
 player = Player(name="Hero")
 

@@ -36,6 +36,17 @@ services:
       - "5000:5000"
     depends_on:
       - mysql
+  
+  room_service:
+    build: ./atomic_services/room
+    restart: always
+    environment:
+      DATABASE_URL: mysql+mysqlconnector://user:password@mysql/room_db
+    ports:
+      - "5016:5016"
+    depends_on:
+      - mysql
+
 
   character_service:
     build: ./atomic_services/character

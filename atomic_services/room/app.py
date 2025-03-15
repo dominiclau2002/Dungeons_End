@@ -1,39 +1,12 @@
 #atomic_services\room\app.py
 import os
 from flask import Flask,jsonify, request
-from flask_sqlalchemy import SQLAlchemy
+from models import db, RoomModel, init_db
 
 app = Flask(__name__)
 
-
-# ✅ Database Configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "mysql+mysqlconnector://user:password@mysql:3307/room_db")
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
-
-# ✅ Define the Room Database Model
-class RoomModel(db.Model):
-    __tablename__ = "Room"
-
-    RoomID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    Description = db.Column(db.String(500), nullable=False)  # Changed from Desctiption and type to String
-    ItemIDs = db.Column(db.JSON, nullable=True, default=[])  # Changed to JSON to store list of ints
-    EnemyIDs = db.Column(db.JSON, nullable=True, default=[])  # Added EnemyIDs as JSON to store list of ints
-    DoorLocked = db.Column(db.Boolean, nullable=False, default=False)  # Added DoorLocked as Boolean
-
-    def to_dict(self):
-        return {
-            "RoomID": self.RoomID,
-            "Description": self.Description,
-            "ItemIDs": self.ItemIDs,
-            "EnemyIDs": self.EnemyIDs,
-            "DoorLocked": self.DoorLocked
-        }
-
-with app.app_context():
-    db.create_all()
+# Initialize the database with the app
+init_db(app)
 
 # ✅ API to Get All Rooms
 @app.route("/rooms", methods=["GET"])

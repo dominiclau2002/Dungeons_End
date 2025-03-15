@@ -15,7 +15,7 @@ COPY app.py /app/
 
 
 # Expose Flask port
-EXPOSE 5001
+EXPOSE 5016
 
 # Start the inventory service
 CMD ["python", "/app/app.py"]

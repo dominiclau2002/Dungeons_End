@@ -6,11 +6,22 @@ WORKDIR /app
 # Copy service script
 COPY . /app/
 
+# Copy necessary files
+COPY . .
+
 # Install dependencies (use the global `requirements.txt`)
 COPY ./requirements.txt /app/
 
+RUN apt-get update && apt-get install -y netcat-openbsd && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+
+
 RUN python -m pip install --no-cache-dir -r /app/requirements.txt
+
+# Add wait-for-it script permissions
+RUN chmod +x /app/wait-for-it.sh
 
 EXPOSE 5014
 
-CMD ["python", "/app/<service_name>.py"]  # Replace <service_name>.py
+# Wait for MySQL before starting Flask
+CMD ["/app/wait-for-it.sh", "mysql:3306", "--", "python", "app.py"]

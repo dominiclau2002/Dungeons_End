@@ -40,7 +40,7 @@ def enter_room(room_id):
         return jsonify({"error": "Player ID is required"}), 400
 
     # ✅ Fetch room details
-    room_response = requests.get(f"http://room_service:5012/room/{room_id}")
+    room_response = requests.get(f"http://room_service:5016/rooms/{room_id}")
     if room_response.status_code != 200:
         return jsonify({"error": "Room not found"}), 404
 

@@ -27,9 +27,13 @@ def get_room(room_id):
 def create_room():
     data = request.get_json()
     description = data.get("description")
+    name = data.get("name")
     item_ids = data.get("item_ids", [])
     enemy_ids = data.get("enemy_ids", [])
     door_locked = data.get("door_locked", False)
+    
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
     
     if not description:
         return jsonify({"error": "Description is required"}), 400

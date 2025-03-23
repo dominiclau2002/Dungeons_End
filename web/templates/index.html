@@ -38,26 +38,46 @@
         }
 
         function selectCharacter(character) {
-            $.post("/select_character", JSON.stringify({player_id, character_name: character}), function(response) {
-                logMessage("Character selected: " + character);
-                $("#character-selection").hide();
-                $("#game-actions").show();
-            }, "json");
+            $.ajax({
+                url: "/select_character",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ player_id, character_name: character }),
+                success: function(response) {
+                    logMessage("Character selected: " + character);
+                    $("#character-selection").hide();
+                    $("#game-actions").show();
+                }
+            });
         }
 
+
         function enterRoom() {
-            $.post("/enter_room", JSON.stringify({player_id, room_id}), function(response) {
-                logMessage("Entered room: " + response.room_name);
-                logMessage(response.description);
-                room_id++;
-            }, "json");
+            $.ajax({
+                url: "/enter_room",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ player_id, room_id }),
+                success: function(response) {
+                    logMessage("Entered room: " + response.room_name);
+                    logMessage(response.description);
+                    room_id++;
+                }
+            });
         }
 
         function attackEnemy() {
-            $.post("/attack", JSON.stringify({player_id, room_id}), function(response) {
-                logMessage(response.message);
-            }, "json");
+            $.ajax({
+                url: "/attack",
+                type: "POST",
+                contentType: "application/json",
+                data: JSON.stringify({ player_id, room_id }),
+                success: function(response) {
+                    logMessage(response.message);
+                }
+            });
         }
+
     </script>
 </body>
 </html>

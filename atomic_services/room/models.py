@@ -8,6 +8,7 @@ class RoomModel(db.Model):
     __tablename__ = "Room"
 
     RoomID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    Name = db.Column(db.String(100), nullable=False)
     Description = db.Column(db.String(500), nullable=False)
     ItemIDs = db.Column(db.JSON, nullable=True, default=[])
     EnemyIDs = db.Column(db.JSON, nullable=True, default=[])
@@ -16,6 +17,7 @@ class RoomModel(db.Model):
     def to_dict(self):
         return {
             "RoomID": self.RoomID,
+            "Name": self.Name,
             "Description": self.Description,
             "ItemIDs": self.ItemIDs,
             "EnemyIDs": self.EnemyIDs,

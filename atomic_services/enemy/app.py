@@ -50,8 +50,4 @@ def damage_enemy(room_id):
     return jsonify({"message": "Enemy damaged", "remaining_health": enemy.health})
 
 if __name__ == '__main__':
-    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
-    db.init_app(app)
-    with app.app_context():
-        db.create_all()
     app.run(host="0.0.0.0", port=5005, debug=True)

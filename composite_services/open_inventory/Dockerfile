@@ -24,4 +24,4 @@ RUN chmod +x /app/wait-for-it.sh
 EXPOSE 5010
 
 # Wait for MySQL before starting Flask
-CMD ["/app/wait-for-it.sh", "mysql:3306", "--", "python", "app.py"]
+CMD ["/app/wait-for-it.sh", "mysql:3306", "--", "python", "-m", "app"]

@@ -10,7 +10,7 @@ app = Flask(__name__)
 PLAYER_SERVICE_URL = os.getenv("PLAYER_SERVICE_URL", "http://player_service:5000")
 ENEMY_SERVICE_URL = os.getenv("ENEMY_SERVICE_URL", "http://enemy_service:5005")
 ITEM_SERVICE_URL = os.getenv("ITEM_SERVICE_URL", "http://item_service:5002")
-COMBAT_SERVICE_URL = os.getenv("COMBAT_SERVICE_URL", "http://fight_enemy:5008")
+COMBAT_SERVICE_URL = os.getenv("COMBAT_SERVICE_URL", "http://fight_enemy_service:5009")
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 ACTIVITY_LOG_QUEUE = "activity_log_queue"
 

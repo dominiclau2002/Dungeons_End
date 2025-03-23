@@ -141,7 +141,7 @@ services:
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
       ENEMY_SERVICE_URL: http://enemy_service:5005
-      FIGHT_ENEMY_SERVICE_URL: http://fight_enemy_service:5008
+      FIGHT_ENEMY_SERVICE_URL: http://fight_enemy_service:5009
       ITEM_SERVICE_URL: http://item_service:5002
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
     ports:
@@ -204,7 +204,8 @@ services:
       - "5050:5050"
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
-      ENTERING_ROOM_SERVICE_URL: http://entering_room_service:5011
-      FIGHT_ENEMY_SERVICE_URL: http://fight_enemy_service:5008
+      ENTERING_ROOM_SERVICE_URL: http://entering_room_service:5011/room
+      FIGHT_ENEMY_SERVICE_URL: http://fight_enemy_service:5009
       INVENTORY_SERVICE_URL: http://open_inventory_service:5010
+      SELECT_CHARACTER_URL: http://select_character_service:5017/select_character
 

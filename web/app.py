@@ -5,9 +5,9 @@ import os
 app = Flask(__name__)
 
 # ✅ Microservice URLs
-SELECT_CHARACTER_URL = os.getenv("SELECT_CHARACTER_URL", "http://select_character:5017/select_character")
-ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://entering_room:5011/room")
-COMBAT_SERVICE_URL = os.getenv("COMBAT_SERVICE_URL", "http://fight_enemy:5008/combat")
+SELECT_CHARACTER_URL = os.getenv("SELECT_CHARACTER_URL", "http://select_character_service:5017/select_character")
+ENTERING_ROOM_SERVICE_URL = os.getenv("ENTERING_ROOM_SERVICE_URL", "http://entering_room_service:5011/room")
+FIGHT_ENEMY_SERVICE_URL = os.getenv("FIGHT_ENEMY_SERVICE_URL", "http://fight_enemy_service:5009/combat")
 
 @app.route("/")
 def home():
@@ -25,14 +25,14 @@ def select_character():
 def enter_room():
     """Handles room navigation."""
     data = request.get_json()
-    response = requests.post(f"{ROOM_SERVICE_URL}/{data['room_id']}", json=data)
+    response = requests.post(f"{ENTERING_ROOM_SERVICE_URL}/{data['room_id']}", json=data)
     return jsonify(response.json())
 
 @app.route("/attack", methods=["POST"])
 def attack():
     """Handles combat attacks."""
     data = request.get_json()
-    response = requests.post(f"{COMBAT_SERVICE_URL}/attack/{data['room_id']}", json=data)
+    response = requests.post(f"{FIGHT_ENEMY_SERVICE_URL}/attack/{data['room_id']}", json=data)
     return jsonify(response.json())
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y netcat-openbsd && apt-get clean && rm -
 
 
 # Install dependencies
-RUN python -m pip install --no-cache-dir -r /app/requirements.txt
+RUN python -m pip install --no-cache-dir --timeout=120 -i https://pypi.org/simple -r /app/requirements.txt
 
 # Copy only necessary files for the player microservice
 COPY app.py /app/

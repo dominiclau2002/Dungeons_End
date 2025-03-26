@@ -24,7 +24,7 @@ class RoomModel(db.Model):
             "DoorLocked": self.DoorLocked
         }
 
-def init_db(app):
+def init_db(app, seed=False):
     # Database Configuration
     DATABASE_URL = os.getenv("DATABASE_URL", "mysql+mysqlconnector://user:password@mysql:3307/room_db")
     app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
@@ -37,6 +37,8 @@ def init_db(app):
         db.drop_all()
         # Create all tables
         db.create_all()
-        # Always seed the data
-        from seed_data import seed_rooms
-        seed_rooms() 
+
+        # Only seed if explicitly requested
+        if seed:
+            from seed_data import seed_rooms
+            seed_rooms()

@@ -33,4 +33,10 @@ def init_db(app):
     db.init_app(app)
     
     with app.app_context():
-        db.create_all() 
+        # Drop all tables
+        db.drop_all()
+        # Create all tables
+        db.create_all()
+        # Always seed the data
+        from seed_data import seed_rooms
+        seed_rooms() 

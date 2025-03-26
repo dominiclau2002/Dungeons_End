@@ -6,7 +6,7 @@ from models import db, RoomModel, init_db
 app = Flask(__name__)
 
 # Initialize the database with the app
-init_db(app)
+init_db(app, seed=True)
 
 # ✅ API to Get All Rooms
 @app.route("/rooms", methods=["GET"])

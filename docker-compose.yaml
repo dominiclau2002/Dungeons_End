@@ -6,7 +6,7 @@ services:
       - "5672:5672"      # RabbitMQ default port
       - "15672:15672"    # Management UI (optional, helpful for debugging)
   mysql:
-    image: mysql:latest
+    image: mysql:5.7
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
@@ -17,6 +17,12 @@ services:
       - "3307:3306"
     volumes:
       - ./mysql-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
@@ -24,12 +30,21 @@ services:
     ports:
       - "8080:80"
     environment:
-        PMA_HOST: mysql
-        PMA_USER: user
-        PMA_PASSWORD: password
-      
+      PMA_HOST: mysql
+      PMA_USER: user
+      PMA_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: rootpassword
+      PMA_ARBITRARY: 1
+      UPLOAD_LIMIT: 300M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
   player_service:
     build: ./atomic_services/player
@@ -39,7 +54,8 @@ services:
     ports:
       - "5000:5000"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
   
   room_service:
     build: ./atomic_services/room
@@ -49,7 +65,8 @@ services:
     ports:
       - "5016:5016"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
 
   character_service:
@@ -70,7 +87,8 @@ services:
     ports:
       - "5005:5005"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
   item_service:
     build: ./atomic_services/item
@@ -80,7 +98,8 @@ services:
     ports:
       - "5002:5002"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
   inventory_service:
     build: ./atomic_services/inventory
@@ -90,7 +109,8 @@ services:
     ports:
       - "5001:5001"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
   dice_service:
     build: ./atomic_services/dice
@@ -106,7 +126,8 @@ services:
     ports:
       - "5008:5008"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
   activity_log_service:
     build: ./atomic_services/activity_log
@@ -116,8 +137,10 @@ services:
     ports:
       - "5013:5013"
     depends_on:
-      - mysql
-      - rabbitmq
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
 
   fight_enemy_service:
     build: ./composite_services/fight_enemy

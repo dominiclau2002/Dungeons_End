@@ -1,210 +1,208 @@
 #atomic_services\room\app.py
 import os
-from flask import Flask,jsonify, request
-from models import db, RoomModel, init_db
+from flask import Flask, jsonify, request
+from models import db, Room
 
 app = Flask(__name__)
 
-# # Initialize the database with the app
-# init_db(app, seed=True)
+# ✅ Database Configuration
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", 
+    "mysql+mysqlconnector://user:password@mysql/room_db"
+)
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
+
+# ✅ API to Create a Room
+@app.route("/room", methods=["POST"])
+def create_room():
+    data = request.get_json()
+    
+    if not data or 'description' not in data:
+        return jsonify({
+            "error": "Description is required"
+        }), 400
+
+    new_room = Room(
+        Description=data['description'],
+        ItemIDs=data.get('item_ids', []),
+        EnemyIDs=data.get('enemy_ids', []),
+        DoorLocked=data.get('door_locked', False)
+    )
+    
+    db.session.add(new_room)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Room created successfully",
+        "room": new_room.to_dict()
+    }), 201
+
+# ✅ API to Get a Room
+@app.route("/room/<int:room_id>", methods=["GET"])
+def get_room(room_id):
+    room = Room.query.get(room_id)
+    if not room:
+        return jsonify({
+            "error": "Room not found"
+        }), 404
+
+    return jsonify(room.to_dict()), 200
 
 # ✅ API to Get All Rooms
 @app.route("/rooms", methods=["GET"])
 def get_all_rooms():
-    rooms = RoomModel.query.all()
-    return jsonify({"rooms": [room.to_dict() for room in rooms]}), 200
+    rooms = Room.query.all()
+    return jsonify({
+        "rooms": [room.to_dict() for room in rooms]
+    }), 200
 
-# ✅ API to Get a Specific Room
-@app.route("/rooms/<int:room_id>", methods=["GET"])
-def get_room(room_id):
-    room = RoomModel.query.get(room_id)
+# ✅ API to Update Room
+@app.route("/room/<int:room_id>", methods=["PUT"])
+def update_room(room_id):
+    room = Room.query.get(room_id)
     if not room:
-        return jsonify({"error": "Room not found"}), 404
-    return jsonify({"room": room.to_dict()}), 200
+        return jsonify({
+            "error": "Room not found"
+        }), 404
 
-# ✅ API to Create a New Room
-@app.route("/rooms", methods=["POST"])
-def create_room():
     data = request.get_json()
-    description = data.get("description")
-    name = data.get("name")
-    item_ids = data.get("item_ids", [])
-    enemy_ids = data.get("enemy_ids", [])
-    door_locked = data.get("door_locked", False)
     
-    if not name:
-        return jsonify({"error": "Name is required"}), 400
-    
-    if not description:
-        return jsonify({"error": "Description is required"}), 400
-    
-    room = RoomModel(
-        Description=description,
-        ItemIDs=item_ids,
-        EnemyIDs=enemy_ids,
-        DoorLocked=door_locked
-    )
-    
-    db.session.add(room)
+    if "description" in data:
+        room.Description = data['description']
+    if "item_ids" in data:
+        room.ItemIDs = data['item_ids']
+    if "enemy_ids" in data:
+        room.EnemyIDs = data['enemy_ids']
+    if "door_locked" in data:
+        room.DoorLocked = data['door_locked']
+
     db.session.commit()
-    
-    return jsonify({"message": "Room created", "room": room.to_dict()}), 201
 
-# ✅ API to Update Room Description
-@app.route("/rooms/<int:room_id>/description", methods=["PUT"])
-def update_room_description(room_id):
-    data = request.get_json()
-    description = data.get("description")
-    
-    if not description:
-        return jsonify({"error": "Description is required"}), 400
-    
-    room = RoomModel.query.get(room_id)
-    if not room:
-        return jsonify({"error": "Room not found"}), 404
-    
-    room.Description = description
-    db.session.commit()
-    
-    return jsonify({"message": "Room description updated", "room": room.to_dict()}), 200
+    return jsonify({
+        "message": "Room updated successfully",
+        "room": room.to_dict()
+    }), 200
 
-# ✅ API to Update Door Locked Status
-@app.route("/rooms/<int:room_id>/door", methods=["PUT"])
-def update_door_status(room_id):
-    data = request.get_json()
-    door_locked = data.get("door_locked")
-    
-    if door_locked is None:
-        return jsonify({"error": "door_locked status is required"}), 400
-    
-    room = RoomModel.query.get(room_id)
-    if not room:
-        return jsonify({"error": "Room not found"}), 404
-    
-    room.DoorLocked = door_locked
-    db.session.commit()
-    
-    return jsonify({"message": "Door status updated", "room": room.to_dict()}), 200
-
-# ✅ API to Add an Item to a Room
-@app.route("/rooms/<int:room_id>/items", methods=["POST"])
-def add_item_to_room(room_id):
-    data = request.get_json()
-    item_id = data.get("item_id")
-    
-    if not item_id:
-        return jsonify({"error": "item_id is required"}), 400
-    
-    room = RoomModel.query.get(room_id)
-    if not room:
-        return jsonify({"error": "Room not found"}), 404
-    
-    # Initialize ItemIDs as empty list if it's None
-    if room.ItemIDs is None:
-        room.ItemIDs = []
-    
-    # Check if item already exists in the room
-    if item_id in room.ItemIDs:
-        return jsonify({"error": "Item already exists in the room"}), 400
-    
-    room.ItemIDs.append(item_id)
-    db.session.commit()
-    
-    return jsonify({"message": "Item added to room", "room": room.to_dict()}), 200
-
-# ✅ API to Remove an Item from a Room
-@app.route("/rooms/<int:room_id>/items/<int:item_id>", methods=["DELETE"])
-def remove_item_from_room(room_id, item_id):
-    room = RoomModel.query.get(room_id)
-    if not room:
-        return jsonify({"error": "Room not found"}), 404
-    
-    # Initialize ItemIDs as empty list if it's None
-    if room.ItemIDs is None:
-        room.ItemIDs = []
-    
-    if item_id not in room.ItemIDs:
-        return jsonify({"error": "Item not found in the room"}), 404
-    
-    room.ItemIDs.remove(item_id)
-    db.session.commit()
-    
-    return jsonify({"message": "Item removed from room", "room": room.to_dict()}), 200
-
-# ✅ API to Add an Enemy to a Room
-@app.route("/rooms/<int:room_id>/enemies", methods=["POST"])
-def add_enemy_to_room(room_id):
-    data = request.get_json()
-    enemy_id = data.get("enemy_id")
-    
-    if not enemy_id:
-        return jsonify({"error": "enemy_id is required"}), 400
-    
-    room = RoomModel.query.get(room_id)
-    if not room:
-        return jsonify({"error": "Room not found"}), 404
-    
-    # Initialize EnemyIDs as empty list if it's None
-    if room.EnemyIDs is None:
-        room.EnemyIDs = []
-    
-    # Check if enemy already exists in the room
-    if enemy_id in room.EnemyIDs:
-        return jsonify({"error": "Enemy already exists in the room"}), 400
-    
-    room.EnemyIDs.append(enemy_id)
-    db.session.commit()
-    
-    return jsonify({"message": "Enemy added to room", "room": room.to_dict()}), 200
-
-# ✅ API to Remove an Enemy from a Room
-@app.route("/rooms/<int:room_id>/enemies/<int:enemy_id>", methods=["DELETE"])
-def remove_enemy_from_room(room_id, enemy_id):
-    room = RoomModel.query.get(room_id)
-    if not room:
-        return jsonify({"error": "Room not found"}), 404
-    
-    # Initialize EnemyIDs as empty list if it's None
-    if room.EnemyIDs is None:
-        room.EnemyIDs = []
-    
-    if enemy_id not in room.EnemyIDs:
-        return jsonify({"error": "Enemy not found in the room"}), 404
-    
-    room.EnemyIDs.remove(enemy_id)
-    db.session.commit()
-    
-    return jsonify({"message": "Enemy removed from room", "room": room.to_dict()}), 200
-
-# ✅ API to Get Room Items
-@app.route("/rooms/<int:room_id>/items", methods=["GET"])
-def get_room_items(room_id):
-    room = RoomModel.query.get(room_id)
-    if not room:
-        return jsonify({"error": "Room not found"}), 404
-    
-    return jsonify({"room_id": room_id, "items": room.ItemIDs or []}), 200
-
-# ✅ API to Get Room Enemies
-@app.route("/rooms/<int:room_id>/enemies", methods=["GET"])
-def get_room_enemies(room_id):
-    room = RoomModel.query.get(room_id)
-    if not room:
-        return jsonify({"error": "Room not found"}), 404
-    
-    return jsonify({"room_id": room_id, "enemies": room.EnemyIDs or []}), 200
-
-# ✅ API to Delete a Room
-@app.route("/rooms/<int:room_id>", methods=["DELETE"])
+# ✅ API to Delete Room
+@app.route("/room/<int:room_id>", methods=["DELETE"])
 def delete_room(room_id):
-    room = RoomModel.query.get(room_id)
+    room = Room.query.get(room_id)
     if not room:
-        return jsonify({"error": "Room not found"}), 404
-    
+        return jsonify({
+            "error": "Room not found"
+        }), 404
+
     db.session.delete(room)
     db.session.commit()
-    
-    return jsonify({"message": "Room deleted successfully"}), 200
+
+    return jsonify({
+        "message": "Room deleted successfully",
+        "deleted_room": room.to_dict()
+    }), 200
+
+# ✅ API to Add Item to Room
+@app.route("/room/<int:room_id>/item/<int:item_id>", methods=["POST"])
+def add_item_to_room(room_id, item_id):
+    room = Room.query.get(room_id)
+    if not room:
+        return jsonify({
+            "error": "Room not found"
+        }), 404
+
+    current_items = room.ItemIDs or []
+    if item_id in current_items:
+        return jsonify({
+            "error": "Item already in room"
+        }), 409
+
+    current_items.append(item_id)
+    room.ItemIDs = current_items
+    db.session.commit()
+
+    return jsonify({
+        "message": "Item added to room",
+        "room": room.to_dict()
+    }), 200
+
+# ✅ API to Remove Item from Room
+@app.route("/room/<int:room_id>/item/<int:item_id>", methods=["DELETE"])
+def remove_item_from_room(room_id, item_id):
+    room = Room.query.get(room_id)
+    if not room:
+        return jsonify({
+            "error": "Room not found"
+        }), 404
+
+    current_items = room.ItemIDs or []
+    if item_id not in current_items:
+        return jsonify({
+            "error": "Item not found in room"
+        }), 404
+
+    current_items.remove(item_id)
+    room.ItemIDs = current_items
+    db.session.commit()
+
+    return jsonify({
+        "message": "Item removed from room",
+        "room": room.to_dict()
+    }), 200
+
+# ✅ API to Add Enemy to Room
+@app.route("/room/<int:room_id>/enemy/<int:enemy_id>", methods=["POST"])
+def add_enemy_to_room(room_id, enemy_id):
+    room = Room.query.get(room_id)
+    if not room:
+        return jsonify({
+            "error": "Room not found"
+        }), 404
+
+    current_enemies = room.EnemyIDs or []
+    if enemy_id in current_enemies:
+        return jsonify({
+            "error": "Enemy already in room"
+        }), 409
+
+    current_enemies.append(enemy_id)
+    room.EnemyIDs = current_enemies
+    db.session.commit()
+
+    return jsonify({
+        "message": "Enemy added to room",
+        "room": room.to_dict()
+    }), 200
+
+# ✅ API to Remove Enemy from Room
+@app.route("/room/<int:room_id>/enemy/<int:enemy_id>", methods=["DELETE"])
+def remove_enemy_from_room(room_id, enemy_id):
+    room = Room.query.get(room_id)
+    if not room:
+        return jsonify({
+            "error": "Room not found"
+        }), 404
+
+    current_enemies = room.EnemyIDs or []
+    if enemy_id not in current_enemies:
+        return jsonify({
+            "error": "Enemy not found in room"
+        }), 404
+
+    current_enemies.remove(enemy_id)
+    room.EnemyIDs = current_enemies
+    db.session.commit()
+
+    return jsonify({
+        "message": "Enemy removed from room",
+        "room": room.to_dict()
+    }), 200
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0',port=5016,debug=True)
+    with app.app_context():
+        db.create_all()
+    app.run(host="0.0.0.0", port=5016, debug=True)

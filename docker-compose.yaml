@@ -162,6 +162,7 @@ services:
     build: ./composite_services/entering_room
     restart: always
     environment:
+      ROOM_SERVICE_URL: http://room_service:5016
       PLAYER_SERVICE_URL: http://player_service:5000
       ENEMY_SERVICE_URL: http://enemy_service:5005
       FIGHT_ENEMY_SERVICE_URL: http://fight_enemy_service:5009
@@ -175,6 +176,7 @@ services:
       - fight_enemy_service
       - item_service
       - activity_log_service
+      - room_service
 
   manage_game_service:
     build: ./composite_services/manage_game

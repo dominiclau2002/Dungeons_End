@@ -213,6 +213,22 @@ services:
       - inventory_service
       - item_service
 
+  pick_up_item_service:
+    build: ./composite_services/pick_up_item
+    restart: always
+    environment:
+      ROOM_SERVICE_URL: http://room_service:5016
+      INVENTORY_SERVICE_URL: http://inventory_service:5001
+      ITEM_SERVICE_URL: http://item_service:5002
+      RABBITMQ_HOST: rabbitmq
+    ports:
+      - "5019:5019"
+    depends_on:
+      - room_service
+      - inventory_service
+      - item_service
+      - rabbitmq
+
   calculate_score_service:
     build: ./composite_services/calculate_score
     restart: always
@@ -242,3 +258,11 @@ services:
       FIGHT_ENEMY_SERVICE_URL: http://fight_enemy_service:5009
       INVENTORY_SERVICE_URL: http://open_inventory_service:5010
       SELECT_CHARACTER_URL: http://select_character_service:5017/select_character
+      PICK_UP_ITEM_SERVICE_URL: http://pick_up_item_service:5019
+    depends_on:
+      - player_service
+      - entering_room_service
+      - fight_enemy_service
+      - open_inventory_service
+      - select_character_service
+      - pick_up_item_service

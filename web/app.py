@@ -14,6 +14,8 @@ PLAYER_SERVICE_URL = os.getenv(
     "PLAYER_SERVICE_URL", "http://player_service:5000")
 ENTERING_ROOM_SERVICE_URL = os.getenv(
     "ENTERING_ROOM_SERVICE_URL", "http://entering_room_service:5011")
+PICK_UP_ITEM_SERVICE_URL = os.getenv(
+    "PICK_UP_ITEM_SERVICE_URL", "http://pick_up_item_service:5019")
 
 
 @app.route("/")
@@ -83,21 +85,61 @@ def enter_room():
     logger.debug(
         f"Calling entering room service: {room_url} with data: {room_data}")
 
-    response = requests.post(room_url, json=room_data)
+    room_response = requests.post(room_url, json=room_data)
     logger.debug(
-        f"Room service response: {response.status_code} - {response.text}")
+        f"Room service response: {room_response.status_code} - {room_response.text}")
 
     # Check if we've reached the end of available rooms
-    if response.status_code != 200:
-        logger.warning(f"Failed to enter room {next_room_id}: {response.text}")
+    if room_response.status_code != 200:
+        logger.warning(
+            f"Failed to enter room {next_room_id}: {room_response.text}")
         return jsonify({
             "end_of_game": True,
             "message": "You've reached the end of the game!"
         })
 
-    # Room was found and entered successfully
+    # Process the room data
+    room_data = room_response.json()
+
+    # Return all the collected information with end_of_game flag
     return jsonify({
         "end_of_game": False,
+        **room_data
+    })
+
+
+@app.route("/pick_up_item", methods=["POST"])
+def pick_up_item():
+    """Handles item pickup using the pick_up_item service."""
+    player_id = 1  # Hardcoded player ID
+    data = request.get_json()
+    room_id = data.get('room_id')
+    item_id = data.get('item_id')
+
+    logger.debug(f"Attempting to pick up item {item_id} from room {room_id}")
+
+    if not room_id or not item_id:
+        logger.error("Missing room_id or item_id in request")
+        return jsonify({"error": "Room ID and Item ID are required"}), 400
+
+    # Call the pick_up_item service
+    pickup_url = f"{PICK_UP_ITEM_SERVICE_URL}/room/{room_id}/item/{item_id}/pickup"
+    logger.debug(f"Calling pick up item service: {pickup_url}")
+
+    response = requests.post(pickup_url)
+    logger.debug(
+        f"Pick up item response: {response.status_code} - {response.text}")
+
+    if response.status_code != 200:
+        return jsonify({
+            "success": False,
+            "error": "Failed to pick up item",
+            "details": response.json() if response.text else None
+        }), response.status_code
+
+    # Return the response from the pick up item service
+    return jsonify({
+        "success": True,
         **response.json()
     })
 
@@ -105,8 +147,6 @@ def enter_room():
 @app.route("/reset_game", methods=["POST"])
 def reset_game():
     """Resets the game by sending the player back to room 0."""
-    player_id = 1
-
     # Call enter_room with target_room_id = 0
     return enter_room()
 

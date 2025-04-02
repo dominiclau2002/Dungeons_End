@@ -29,6 +29,40 @@
         background-color: #ffaa00;
         display: none; /* Hidden by default */
       }
+      .item {
+        color: #228b22; /* Forest green for items */
+      }
+      .enemy {
+        color: #b22222; /* Firebrick red for enemies */
+      }
+      #item-actions {
+        margin: 10px 0;
+        padding: 10px;
+        border-top: 1px dashed #ccc;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .pickup-button {
+        background-color: #4caf50;
+        color: white;
+        margin: 5px;
+        padding: 8px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .pickup-button:hover {
+        background-color: #45a049;
+      }
+      .success-message {
+        color: #4caf50;
+        font-weight: bold;
+      }
+      .error-message {
+        color: #f44336;
+        font-weight: bold;
+      }
     </style>
   </head>
   <body>
@@ -41,6 +75,8 @@
       </p>
     </div>
 
+    <div id="item-actions"></div>
+
     <div id="game-actions">
       <button id="next-room-btn" onclick="enterRoom()">Enter Next Room</button>
       <button id="reset-button" onclick="resetGame()" style="display: none">
@@ -50,11 +86,82 @@
 
     <script>
       let player_id = 1;
+      let current_room_id = 0;
+      let room_items = [];
 
-      function logMessage(message) {
-        $("#game-log").append("<p>" + message + "</p>");
+      function logMessage(message, className = "") {
+        if (className) {
+          $("#game-log").append(`<p class="${className}">${message}</p>`);
+        } else {
+          $("#game-log").append(`<p>${message}</p>`);
+        }
         // Auto-scroll to bottom
         $("#game-log").scrollTop($("#game-log")[0].scrollHeight);
+      }
+
+      function createItemButtons(items, room_id) {
+        // Clear previous buttons
+        $("#item-actions").empty();
+
+        // If no items, don't show anything
+        if (!items || items.length === 0) {
+          return;
+        }
+
+        // Create buttons for each item
+        items.forEach((item) => {
+          const button = $(`<button class="pickup-button" 
+                           data-item-id="${item.id}" 
+                           data-room-id="${room_id}" 
+                           data-item-name="${item.name}">
+                           Pick up ${item.name}</button>`);
+
+          button.click(function () {
+            const itemId = $(this).data("item-id");
+            const roomId = $(this).data("room-id");
+            const itemName = $(this).data("item-name");
+            pickUpItem(roomId, itemId, itemName, this);
+          });
+
+          $("#item-actions").append(button);
+        });
+      }
+
+      function pickUpItem(roomId, itemId, itemName, buttonElement) {
+        $.ajax({
+          url: "/pick_up_item",
+          type: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({
+            room_id: roomId,
+            item_id: itemId,
+          }),
+          success: function (response) {
+            logMessage(`You picked up the ${itemName}!`, "success-message");
+
+            // Remove the button since the item is now picked up
+            $(buttonElement).remove();
+
+            // Remove the item from the room_items array
+            room_items = room_items.filter((item) => item.id !== itemId);
+
+            // If all items are picked up, maybe show a message
+            if (room_items.length === 0) {
+              $("#item-actions").empty();
+            }
+          },
+          error: function (xhr) {
+            let errorMsg = "Failed to pick up item";
+            try {
+              errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
+            } catch (e) {}
+
+            logMessage(
+              `Failed to pick up ${itemName}: ${errorMsg}`,
+              "error-message"
+            );
+          },
+        });
       }
 
       function enterRoom() {
@@ -73,6 +180,7 @@
               // Show reset button, hide next room button
               $("#reset-button").show();
               $("#next-room-btn").hide();
+              $("#item-actions").empty();
             } else {
               // Normal room entry
               logMessage("------------------------------");
@@ -80,6 +188,41 @@
                 `Room ${response.player_current_room}: ${response.room_name}`
               );
               logMessage(response.description);
+
+              // Update current room ID
+              current_room_id = response.player_current_room;
+
+              // Store room items for later reference
+              room_items = response.items || [];
+
+              // Display items in the room
+              if (response.items && response.items.length > 0) {
+                logMessage("Items in this room:", "item");
+                response.items.forEach((item) => {
+                  logMessage(`- ${item.name}: ${item.description}`, "item");
+                });
+
+                // Create pickup buttons for the items
+                createItemButtons(response.items, current_room_id);
+              } else {
+                // Clear item buttons if no items in the room
+                $("#item-actions").empty();
+              }
+
+              // Display enemies in the room
+              if (response.enemies && response.enemies.length > 0) {
+                logMessage("Enemies in this room:", "enemy");
+                response.enemies.forEach((enemy) => {
+                  logMessage(`- ${enemy.name}: ${enemy.description}`, "enemy");
+                });
+              }
+
+              if (
+                response.items.length === 0 &&
+                response.enemies.length === 0
+              ) {
+                logMessage("This room is empty.");
+              }
             }
           },
           error: function (xhr) {
@@ -95,6 +238,7 @@
             // Show reset button, hide next room button
             $("#reset-button").show();
             $("#next-room-btn").hide();
+            $("#item-actions").empty();
           },
         });
       }
@@ -112,6 +256,33 @@
               `Room ${response.player_current_room}: ${response.room_name}`
             );
             logMessage(response.description);
+
+            // Update current room ID
+            current_room_id = response.player_current_room;
+
+            // Store room items for later reference
+            room_items = response.items || [];
+
+            // Display items and enemies in the starting room
+            if (response.items && response.items.length > 0) {
+              logMessage("Items in this room:", "item");
+              response.items.forEach((item) => {
+                logMessage(`- ${item.name}: ${item.description}`, "item");
+              });
+
+              // Create pickup buttons for the items
+              createItemButtons(response.items, current_room_id);
+            } else {
+              // Clear item buttons if no items in the room
+              $("#item-actions").empty();
+            }
+
+            if (response.enemies && response.enemies.length > 0) {
+              logMessage("Enemies in this room:", "enemy");
+              response.enemies.forEach((enemy) => {
+                logMessage(`- ${enemy.name}: ${enemy.description}`, "enemy");
+              });
+            }
 
             // Hide reset button, show next room button
             $("#reset-button").hide();

@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # ✅ Database Configuration
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
+    "DATABASE_URL",
     "mysql+mysqlconnector://user:password@mysql/item_db"
 )
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
@@ -19,10 +19,12 @@ with app.app_context():
     db.create_all()
 
 # ✅ API to Create an Item
+
+
 @app.route("/item", methods=["POST"])
 def create_item():
     data = request.get_json()
-    
+
     required_fields = ["name", "description", "points"]
     if not data or not all(field in data for field in required_fields):
         return jsonify({
@@ -42,7 +44,7 @@ def create_item():
         Description=data["description"],
         Points=data["points"]
     )
-    
+
     db.session.add(new_item)
     db.session.commit()
 
@@ -52,6 +54,8 @@ def create_item():
     }), 201
 
 # ✅ API to Fetch an Item by ID
+
+
 @app.route("/item/<int:item_id>", methods=["GET"])
 def get_item(item_id):
     item = Item.query.get(item_id)
@@ -63,6 +67,8 @@ def get_item(item_id):
     return jsonify(item.to_dict()), 200
 
 # ✅ API to Fetch All Items
+
+
 @app.route("/items", methods=["GET"])
 def get_all_items():
     items = Item.query.all()
@@ -71,6 +77,8 @@ def get_all_items():
     }), 200
 
 # ✅ API to Update an Item
+
+
 @app.route("/item/<int:item_id>", methods=["PUT"])
 def update_item(item_id):
     item = Item.query.get(item_id)
@@ -80,7 +88,7 @@ def update_item(item_id):
         }), 404
 
     data = request.get_json()
-    
+
     if "name" in data:
         existing_item = Item.query.filter_by(Name=data["name"]).first()
         if existing_item and existing_item.ItemID != item_id:
@@ -88,7 +96,7 @@ def update_item(item_id):
                 "error": "Item with this name already exists"
             }), 409
         item.Name = data["name"]
-    
+
     if "description" in data:
         item.Description = data["description"]
     if "points" in data:
@@ -102,6 +110,8 @@ def update_item(item_id):
     }), 200
 
 # ✅ API to Delete an Item
+
+
 @app.route("/item/<int:item_id>", methods=["DELETE"])
 def delete_item(item_id):
     item = Item.query.get(item_id)
@@ -117,6 +127,7 @@ def delete_item(item_id):
         "message": "Item deleted successfully",
         "deleted_item": item.to_dict()
     }), 200
+
 
 if __name__ == "__main__":
     with app.app_context():

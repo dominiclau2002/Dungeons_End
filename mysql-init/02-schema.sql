@@ -101,4 +101,4 @@ VALUES
 USE player_db;
 INSERT INTO Player (Name, CharacterClass, Health, Damage, RoomID)
 VALUES
-('Player1', 'Warrior', 100, 10, 1); 
+('Player1', 'Warrior', 100, 10, 0); 

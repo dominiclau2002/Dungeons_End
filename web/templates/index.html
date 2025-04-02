@@ -1,83 +1,133 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Text Adventure Game</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
-        #game-log { border: 1px solid black; padding: 10px; height: 300px; overflow-y: auto; }
-        button { margin: 10px; padding: 10px; }
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        margin: 20px;
+      }
+      #game-log {
+        border: 1px solid black;
+        padding: 10px;
+        height: 300px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+        text-align: left;
+      }
+      button {
+        margin: 10px;
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      #reset-button {
+        background-color: #ffaa00;
+        display: none; /* Hidden by default */
+      }
     </style>
-</head>
-<body>
-    <h1>Welcome to the Text Adventure Game!</h1>
-    
-    <div id="character-selection">
-        <h2>Select Your Character</h2>
-        <button onclick="selectCharacter('Warrior')">Warrior</button>
-        <button onclick="selectCharacter('Rogue')">Rogue</button>
-        <button onclick="selectCharacter('Cleric')">Cleric</button>
-        <button onclick="selectCharacter('Witch')">Witch</button>
+  </head>
+  <body>
+    <h1>Text Adventure Game</h1>
+
+    <div id="game-log">
+      <p>
+        Welcome to the Text Adventure Game! Click "Enter Next Room" to begin
+        your journey.
+      </p>
     </div>
 
-    <div id="game-log"></div>
-
-    <div id="game-actions" style="display:none;">
-        <button onclick="enterRoom()">Enter Next Room</button>
-        <button onclick="attackEnemy()">Attack Enemy</button>
+    <div id="game-actions">
+      <button id="next-room-btn" onclick="enterRoom()">Enter Next Room</button>
+      <button id="reset-button" onclick="resetGame()" style="display: none">
+        Reset Game
+      </button>
     </div>
 
     <script>
-        let player_id = 1;
-        let room_id = 1;
+      let player_id = 1;
 
-        function logMessage(message) {
-            $("#game-log").append("<p>" + message + "</p>");
-        }
+      function logMessage(message) {
+        $("#game-log").append("<p>" + message + "</p>");
+        // Auto-scroll to bottom
+        $("#game-log").scrollTop($("#game-log")[0].scrollHeight);
+      }
 
-        function selectCharacter(character) {
-            $.ajax({
-                url: "/select_character",
-                type: "POST",
-                contentType: "application/json",
-                data: JSON.stringify({ player_id, character_name: character }),
-                success: function(response) {
-                    logMessage("Character selected: " + character);
-                    $("#character-selection").hide();
-                    $("#game-actions").show();
-                }
-            });
-        }
+      function enterRoom() {
+        $.ajax({
+          url: "/enter_room",
+          type: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({}),
+          success: function (response) {
+            if (response.end_of_game) {
+              // End of game reached
+              logMessage("------------------------------");
+              logMessage(response.message);
+              logMessage("You've reached the end of the game!");
 
+              // Show reset button, hide next room button
+              $("#reset-button").show();
+              $("#next-room-btn").hide();
+            } else {
+              // Normal room entry
+              logMessage("------------------------------");
+              logMessage(
+                `Room ${response.player_current_room}: ${response.room_name}`
+              );
+              logMessage(response.description);
+            }
+          },
+          error: function (xhr) {
+            // This could also indicate end of game
+            let errorMsg = "An error occurred";
+            try {
+              errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
+            } catch (e) {}
 
-        function enterRoom() {
-            $.ajax({
-                url: "/enter_room",
-                type: "POST",
-                contentType: "application/json",
-                data: JSON.stringify({ player_id, room_id }),
-                success: function(response) {
-                    logMessage("Entered room: " + response.room_name);
-                    logMessage(response.description);
-                    room_id++;
-                }
-            });
-        }
+            logMessage("------------------------------");
+            logMessage("You've reached the end of the game!");
 
-        function attackEnemy() {
-            $.ajax({
-                url: "/attack",
-                type: "POST",
-                contentType: "application/json",
-                data: JSON.stringify({ player_id, room_id }),
-                success: function(response) {
-                    logMessage(response.message);
-                }
-            });
-        }
+            // Show reset button, hide next room button
+            $("#reset-button").show();
+            $("#next-room-btn").hide();
+          },
+        });
+      }
 
+      function resetGame() {
+        $.ajax({
+          url: "/enter_room",
+          type: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({ target_room_id: 0 }),
+          success: function (response) {
+            logMessage("------------------------------");
+            logMessage("Game reset! Starting over from the beginning.");
+            logMessage(
+              `Room ${response.player_current_room}: ${response.room_name}`
+            );
+            logMessage(response.description);
+
+            // Hide reset button, show next room button
+            $("#reset-button").hide();
+            $("#next-room-btn").show();
+          },
+          error: function (xhr) {
+            let errorMsg = "Failed to reset the game";
+            try {
+              errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
+            } catch (e) {}
+
+            logMessage("------------------------------");
+            logMessage(errorMsg);
+          },
+        });
+      }
     </script>
-</body>
+  </body>
 </html>

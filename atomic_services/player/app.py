@@ -6,7 +6,7 @@ app = Flask(__name__)
 
 # ✅ Database Configuration
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", 
+    "DATABASE_URL",
     "mysql+mysqlconnector://user:password@mysql/player_db"
 )
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
@@ -18,10 +18,12 @@ with app.app_context():
     db.create_all()
 
 # ✅ Create new player
+
+
 @app.route('/player', methods=['POST'])
 def create_player():
     data = request.get_json()
-    
+
     required_fields = ["name", "character_class"]
     if not data or not all(field in data for field in required_fields):
         return jsonify({
@@ -51,7 +53,7 @@ def create_player():
         Damage=data.get('damage', 10),
         RoomID=data.get('room_id', 1)
     )
-    
+
     db.session.add(new_player)
     db.session.commit()
 
@@ -61,6 +63,8 @@ def create_player():
     }), 201
 
 # ✅ Get player details
+
+
 @app.route('/player/<int:player_id>', methods=['GET'])
 def get_player(player_id):
     player = Player.query.get(player_id)
@@ -68,10 +72,12 @@ def get_player(player_id):
         return jsonify({
             "error": "Player not found"
         }), 404
-    
+
     return jsonify(player.to_dict()), 200
 
 # ✅ Update player
+
+
 @app.route('/player/<int:player_id>', methods=['PUT'])
 def update_player(player_id):
     player = Player.query.get(player_id)
@@ -81,7 +87,7 @@ def update_player(player_id):
         }), 404
 
     data = request.get_json()
-    
+
     if "name" in data:
         existing_player = Player.query.filter_by(Name=data['name']).first()
         if existing_player and existing_player.PlayerID != player_id:
@@ -89,7 +95,7 @@ def update_player(player_id):
                 "error": "Player with this name already exists"
             }), 409
         player.Name = data['name']
-    
+
     if "character_class" in data:
         valid_classes = ['Warrior', 'Rogue', 'Cleric', 'Ranger']
         if data['character_class'] not in valid_classes:
@@ -98,7 +104,7 @@ def update_player(player_id):
                 "valid_classes": valid_classes
             }), 400
         player.CharacterClass = data['character_class']
-    
+
     if "health" in data:
         player.Health = data['health']
     if "damage" in data:
@@ -114,6 +120,8 @@ def update_player(player_id):
     }), 200
 
 # ✅ Delete player
+
+
 @app.route('/player/<int:player_id>', methods=['DELETE'])
 def delete_player(player_id):
     player = Player.query.get(player_id)
@@ -131,12 +139,15 @@ def delete_player(player_id):
     }), 200
 
 # ✅ Get all players
+
+
 @app.route('/players', methods=['GET'])
 def get_all_players():
     players = Player.query.all()
     return jsonify({
         "players": [player.to_dict() for player in players]
     }), 200
+
 
 if __name__ == "__main__":
     with app.app_context():

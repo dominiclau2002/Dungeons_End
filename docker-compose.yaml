@@ -177,6 +177,8 @@ services:
       FIGHT_ENEMY_SERVICE_URL: http://fight_enemy_service:5009
       ITEM_SERVICE_URL: http://item_service:5002
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+      INVENTORY_SERVICE_URL: http://inventory_service:5001
+
     ports:
       - "5011:5011"
     depends_on:

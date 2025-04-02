@@ -98,13 +98,15 @@ def remove_from_inventory(player_id, item_id):
 def view_inventory(player_id):
     logger.debug(f"Getting inventory for player {player_id}")
     inventory_items = Inventory.query.filter_by(PlayerID=player_id).all()
-
+    
+    # Extract just the item IDs into a simple array
+    item_ids = [item.ItemID for item in inventory_items]
+    
     logger.info(
-        f"Found {len(inventory_items)} items in player {player_id}'s inventory")
+        f"Found {len(item_ids)} items in player {player_id}'s inventory")
     return jsonify({
         "player_id": player_id,
-        "inventory": [item.to_dict() for item in inventory_items],
-        "count": len(inventory_items)
+        "inventory": item_ids
     }), 200
 
 # ✅ API to Check if Player Has Item - Now just using the RESTful version

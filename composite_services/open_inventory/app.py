@@ -36,24 +36,44 @@ def view_inventory(player_id):
     """
 
     # ✅ Step 1: Fetch inventory
-    inventory_response = requests.get(f"{INVENTORY_SERVICE_URL}/inventory/{player_id}")
+    inventory_response = requests.get(f"{INVENTORY_SERVICE_URL}/inventory/player/{player_id}")
     if inventory_response.status_code != 200:
         return jsonify({"error": "Inventory could not be retrieved."}), 500
 
-    inventory_data = inventory_response.json().get("inventory", [])
+    inventory_data = inventory_response.json()
+    item_ids = inventory_data.get("inventory", [])
 
-    # ✅ Step 2: Fetch item details
-    inventory_with_details = []
-    for item in inventory_data:
-        item_response = requests.get(f"{ITEM_SERVICE_URL}/item/{item['ItemID']}")
+    # ✅ Step 2: Fetch item details and enhance inventory items
+    enhanced_inventory = []
+    for item_id in item_ids:
+        item_response = requests.get(f"{ITEM_SERVICE_URL}/item/{item_id}")
+        
         if item_response.status_code == 200:
             item_info = item_response.json()
-            inventory_with_details.append(item_info)
+            # Create enhanced item with name and description
+            # The item service might be using capitalized field names
+            enhanced_item = {
+                "item_id": item_id,
+                "name": item_info.get("Name", item_info.get("name", "Unknown Item")),
+                "description": item_info.get("Description", item_info.get("description", "No description available"))
+            }
+            enhanced_inventory.append(enhanced_item)
+        else:
+            # Still include item ID even if item details can't be fetched
+            enhanced_item = {
+                "item_id": item_id,
+                "name": "Unknown Item",
+                "description": "Item details unavailable"
+            }
+            enhanced_inventory.append(enhanced_item)
 
     # ✅ Log inventory view via RabbitMQ
     send_activity_log(player_id, "Viewed inventory")
 
-    return jsonify({"inventory": inventory_with_details})
+    return jsonify({
+        "player_id": player_id,
+        "inventory": enhanced_inventory
+    })
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5010, debug=True)

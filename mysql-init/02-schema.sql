@@ -34,9 +34,9 @@ CREATE TABLE Item (
 -- ✅ Use `inventory_db`
 USE inventory_db;
 CREATE TABLE Inventory (
-    InventoryID INT AUTO_INCREMENT PRIMARY KEY,
     PlayerID INT NOT NULL,
-    ItemID INT NOT NULL
+    ItemID INT NOT NULL,
+    PRIMARY KEY (PlayerID, ItemID)
 );
 
 -- ✅ Use `activity_log_db`

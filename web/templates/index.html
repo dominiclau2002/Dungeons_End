@@ -14,7 +14,7 @@
       #game-log {
         border: 1px solid black;
         padding: 10px;
-        height: 300px;
+        height: 450px; /* Increased height from 300px to 450px */
         overflow-y: auto;
         margin-bottom: 20px;
         text-align: left;
@@ -29,11 +29,18 @@
         background-color: #ffaa00;
         display: none; /* Hidden by default */
       }
+      #inventory-button {
+        background-color: #4a89dc; /* Blue color for inventory button */
+        color: white;
+      }
       .item {
         color: #228b22; /* Forest green for items */
       }
       .enemy {
         color: #b22222; /* Firebrick red for enemies */
+      }
+      .inventory-item {
+        color: #9932cc; /* Purple for inventory items */
       }
       #item-actions {
         margin: 10px 0;
@@ -79,6 +86,7 @@
 
     <div id="game-actions">
       <button id="next-room-btn" onclick="enterRoom()">Enter Next Room</button>
+      <button id="inventory-button" onclick="viewInventory()">View Inventory</button>
       <button id="reset-button" onclick="resetGame()" style="display: none">
         Reset Game
       </button>
@@ -218,27 +226,46 @@
               }
 
               if (
-                response.items.length === 0 &&
-                response.enemies.length === 0
+                (!response.items || response.items.length === 0) &&
+                (!response.enemies || response.enemies.length === 0)
               ) {
                 logMessage("This room is empty.");
               }
             }
           },
           error: function (xhr) {
-            // This could also indicate end of game
-            let errorMsg = "An error occurred";
+            // Get the response data
+            let response = {};
             try {
-              errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
-            } catch (e) {}
+              response = JSON.parse(xhr.responseText);
+            } catch (e) {
+              response = { error: "An unknown error occurred" };
+            }
 
+            // Log appropriate message based on status and response
             logMessage("------------------------------");
-            logMessage("You've reached the end of the game!");
-
-            // Show reset button, hide next room button
-            $("#reset-button").show();
-            $("#next-room-btn").hide();
-            $("#item-actions").empty();
+            
+            // Special handling for locked doors (403 status with door_locked flag)
+            if (xhr.status === 403 && response.door_locked) {
+              logMessage(response.error || "This door is locked!", "error-message");
+              logMessage("You need to find a Lockpick to proceed!", "error-message");
+              logMessage("------------------------------");
+              return; // Exit early
+            } 
+            // Special handling for out of bounds rooms (end of game)
+            else if (response.end_of_game) {
+              logMessage(response.message || "You've reached the end of the game!");
+              
+              // Show reset button, hide next room button
+              $("#reset-button").show();
+              $("#next-room-btn").hide();
+              $("#item-actions").empty();
+            }
+            // Handle other errors
+            else {
+              logMessage(`Error: ${response.error || "Could not enter the room"}`, "error-message");
+              logMessage("------------------------------");
+            }
           },
         });
       }
@@ -297,6 +324,39 @@
             logMessage("------------------------------");
             logMessage(errorMsg);
           },
+        });
+      }
+
+      function viewInventory() {
+        $.ajax({
+          url: "/view_inventory",
+          type: "GET",
+          success: function (response) {
+            logMessage("------------------------------");
+            logMessage("Your Inventory:", "inventory-item");
+            
+            const items = response.items || [];
+            
+            if (items.length === 0) {
+              logMessage("Your inventory is empty.", "inventory-item");
+            } else {
+              // Each item already has name and description, no need for additional fetches
+              items.forEach(item => {
+                logMessage(`- ${item.name}: ${item.description}`, "inventory-item");
+              });
+            }
+            logMessage("------------------------------");
+          },
+          error: function (xhr) {
+            let errorMsg = "Failed to retrieve inventory";
+            try {
+              errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
+            } catch (e) {}
+            
+            logMessage("------------------------------");
+            logMessage(`Error: ${errorMsg}`, "error-message");
+            logMessage("------------------------------");
+          }
         });
       }
     </script>

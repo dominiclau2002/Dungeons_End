@@ -33,6 +33,10 @@
         background-color: #4a89dc; /* Blue color for inventory button */
         color: white;
       }
+      #stats-button {
+        background-color: #9b59b6; /* Purple color for stats button */
+        color: white;
+      }
       .item {
         color: #228b22; /* Forest green for items */
       }
@@ -41,6 +45,13 @@
       }
       .inventory-item {
         color: #9932cc; /* Purple for inventory items */
+      }
+      .player-stats {
+        color: #9b59b6; /* Purple for player stats */
+        font-weight: bold;
+      }
+      .stats-value {
+        color: #3498db; /* Blue for the stat values */
       }
       #item-actions {
         margin: 10px 0;
@@ -86,7 +97,10 @@
 
     <div id="game-actions">
       <button id="next-room-btn" onclick="enterRoom()">Enter Next Room</button>
-      <button id="inventory-button" onclick="viewInventory()">View Inventory</button>
+      <button id="inventory-button" onclick="viewInventory()">
+        View Inventory
+      </button>
+      <button id="stats-button" onclick="viewPlayerStats()">View Stats</button>
       <button id="reset-button" onclick="resetGame()" style="display: none">
         Reset Game
       </button>
@@ -244,18 +258,26 @@
 
             // Log appropriate message based on status and response
             logMessage("------------------------------");
-            
+
             // Special handling for locked doors (403 status with door_locked flag)
             if (xhr.status === 403 && response.door_locked) {
-              logMessage(response.error || "This door is locked!", "error-message");
-              logMessage("You need to find a Lockpick to proceed!", "error-message");
+              logMessage(
+                response.error || "This door is locked!",
+                "error-message"
+              );
+              logMessage(
+                "You need to find a Lockpick to proceed!",
+                "error-message"
+              );
               logMessage("------------------------------");
               return; // Exit early
-            } 
+            }
             // Special handling for out of bounds rooms (end of game)
             else if (response.end_of_game) {
-              logMessage(response.message || "You've reached the end of the game!");
-              
+              logMessage(
+                response.message || "You've reached the end of the game!"
+              );
+
               // Show reset button, hide next room button
               $("#reset-button").show();
               $("#next-room-btn").hide();
@@ -263,7 +285,10 @@
             }
             // Handle other errors
             else {
-              logMessage(`Error: ${response.error || "Could not enter the room"}`, "error-message");
+              logMessage(
+                `Error: ${response.error || "Could not enter the room"}`,
+                "error-message"
+              );
               logMessage("------------------------------");
             }
           },
@@ -334,15 +359,18 @@
           success: function (response) {
             logMessage("------------------------------");
             logMessage("Your Inventory:", "inventory-item");
-            
+
             const items = response.items || [];
-            
+
             if (items.length === 0) {
               logMessage("Your inventory is empty.", "inventory-item");
             } else {
               // Each item already has name and description, no need for additional fetches
-              items.forEach(item => {
-                logMessage(`- ${item.name}: ${item.description}`, "inventory-item");
+              items.forEach((item) => {
+                logMessage(
+                  `- ${item.name}: ${item.description}`,
+                  "inventory-item"
+                );
               });
             }
             logMessage("------------------------------");
@@ -352,11 +380,65 @@
             try {
               errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
             } catch (e) {}
-            
+
             logMessage("------------------------------");
             logMessage(`Error: ${errorMsg}`, "error-message");
             logMessage("------------------------------");
-          }
+          },
+        });
+      }
+
+      function viewPlayerStats() {
+        $.ajax({
+          url: "/player_stats",
+          type: "GET",
+          success: function (response) {
+            logMessage("------------------------------");
+            logMessage("Player Stats:", "player-stats");
+
+            // Format player name and class nicely - using lowercase property names
+
+            logMessage(
+              `Class: <span class="stats-value">${
+                response.character_class || "Unknown"
+              }</span>`,
+              "player-stats"
+            );
+
+            // Format HP and combat stats - using lowercase property names
+            logMessage(
+              `Health: <span class="stats-value">${
+                response.health || 0
+              }</span>`,
+              "player-stats"
+            );
+            logMessage(
+              `Damage: <span class="stats-value">${
+                response.damage || 0
+              }</span>`,
+              "player-stats"
+            );
+
+            // Show current location - using lowercase property name
+            logMessage(
+              `Current Room: <span class="stats-value">${
+                response.room_id || 0
+              }</span>`,
+              "player-stats"
+            );
+
+            logMessage("------------------------------");
+          },
+          error: function (xhr) {
+            let errorMsg = "Failed to retrieve player stats";
+            try {
+              errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
+            } catch (e) {}
+
+            logMessage("------------------------------");
+            logMessage(`Error: ${errorMsg}`, "error-message");
+            logMessage("------------------------------");
+          },
         });
       }
     </script>

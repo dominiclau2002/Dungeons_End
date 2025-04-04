@@ -53,7 +53,8 @@ def enter_room():
     data = request.get_json()
     target_room_id = data.get('target_room_id', None)
 
-    logger.debug(f"POST /enter_room - Starting to process for player ID: {player_id}")
+    logger.debug(
+        f"POST /enter_room - Starting to process for player ID: {player_id}")
 
     # If target_room_id is provided, use it (for reset functionality)
     if target_room_id is not None:
@@ -61,7 +62,8 @@ def enter_room():
         logger.debug(f"Using provided target room ID: {next_room_id}")
     else:
         # Otherwise, get player's current room and increment it
-        player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+        player_response = requests.get(
+            f"{PLAYER_SERVICE_URL}/player/{player_id}")
         if player_response.status_code != 200:
             logger.error(f"Failed to get player data: {player_response.text}")
             return jsonify({"error": "Could not retrieve player data"}), player_response.status_code
@@ -80,16 +82,19 @@ def enter_room():
 
         # Increment room ID by 1 for the next room
         next_room_id = current_room_id + 1
-        logger.debug(f"Current room ID: {current_room_id}, Next room ID: {next_room_id}")
+        logger.debug(
+            f"Current room ID: {current_room_id}, Next room ID: {next_room_id}")
 
     # Call entering room service with the room ID
     room_data = {"player_id": player_id}
     room_url = f"{ENTERING_ROOM_SERVICE_URL}/room/{next_room_id}"
-    logger.debug(f"Calling entering room service: {room_url} with data: {room_data}")
+    logger.debug(
+        f"Calling entering room service: {room_url} with data: {room_data}")
 
     try:
         room_response = requests.post(room_url, json=room_data)
-        logger.debug(f"Room service response: {room_response.status_code} - {room_response.text}")
+        logger.debug(
+            f"Room service response: {room_response.status_code} - {room_response.text}")
 
         # Check if we got a locked door response (status code 403)
         if room_response.status_code == 403:
@@ -108,10 +113,11 @@ def enter_room():
                     "error": "This door is locked! You need a Lockpick to proceed.",
                     "door_locked": True
                 }), 403
-                
+
         # For room not found (404) or other client errors (4xx), check for end of game
         elif room_response.status_code == 404 or (400 <= room_response.status_code < 500):
-            logger.warning(f"Failed to enter room {next_room_id}: {room_response.text}")
+            logger.warning(
+                f"Failed to enter room {next_room_id}: {room_response.text}")
             if next_room_id > 3:  # If trying to go beyond the known number of rooms
                 return jsonify({
                     "end_of_game": True,
@@ -124,20 +130,21 @@ def enter_room():
                     return jsonify({"error": error_data.get("error", "Cannot enter this room.")}), room_response.status_code
                 except:
                     return jsonify({"error": "Cannot enter this room."}), room_response.status_code
-        
+
         # For server errors (5xx), return a generic error
         elif room_response.status_code >= 500:
             return jsonify({"error": "Server error. Please try again later."}), room_response.status_code
-            
+
         # If we get a 200 OK, process the room data normally
         room_data = room_response.json()
         return jsonify({
             "end_of_game": False,
             **room_data
         })
-        
+
     except requests.RequestException as e:
-        logger.error(f"Request error when calling entering room service: {str(e)}")
+        logger.error(
+            f"Request error when calling entering room service: {str(e)}")
         return jsonify({"error": "Failed to connect to room service."}), 500
 
 
@@ -189,23 +196,25 @@ def view_inventory():
     """Retrieves the player's inventory with item details."""
     player_id = 1  # Hardcoded player ID
 
-    logger.debug(f"GET /view_inventory - Retrieving inventory for player ID: {player_id}")
-    
+    logger.debug(
+        f"GET /view_inventory - Retrieving inventory for player ID: {player_id}")
+
     # Call the open_inventory service
     inventory_url = f"{OPEN_INVENTORY_SERVICE_URL}/inventory/{player_id}"
     logger.debug(f"Calling inventory service: {inventory_url}")
-    
+
     response = requests.get(inventory_url)
-    logger.debug(f"Inventory service response: {response.status_code} - {response.text}")
-    
+    logger.debug(
+        f"Inventory service response: {response.status_code} - {response.text}")
+
     if response.status_code != 200:
         logger.error(f"Failed to retrieve inventory: {response.text}")
         return jsonify({"error": "Failed to retrieve inventory"}), response.status_code
-    
+
     # The inventory data already contains the enhanced items with descriptions
     # Pass it through directly instead of just extracting IDs
     inventory_data = response.json()
-    
+
     return jsonify({
         "player_id": player_id,
         "items": inventory_data.get("inventory", [])
@@ -216,20 +225,21 @@ def view_inventory():
 def fetch_item_details():
     """Fetches details for a specific item."""
     item_id = request.args.get('item_id')
-    
+
     if not item_id:
         return jsonify({"error": "Item ID is required"}), 400
-    
+
     # Call the item service to get item details
     item_url = f"{ITEM_SERVICE_URL}/item/{item_id}"
     logger.debug(f"Fetching item details from: {item_url}")
-    
+
     response = requests.get(item_url)
-    logger.debug(f"Item service response: {response.status_code} - {response.text}")
-    
+    logger.debug(
+        f"Item service response: {response.status_code} - {response.text}")
+
     if response.status_code != 200:
         return jsonify({"error": "Failed to fetch item details"}), response.status_code
-    
+
     return jsonify(response.json())
 
 
@@ -238,19 +248,20 @@ def fetch_item_details_batch():
     """Fetches details for multiple items at once."""
     data = request.get_json()
     item_ids = data.get('item_ids', [])
-    
+
     if not item_ids:
         return jsonify({"error": "Item IDs are required"}), 400
-    
+
     items = []
     for item_id in item_ids:
         # Call the item service to get item details
         item_url = f"{ITEM_SERVICE_URL}/item/{item_id}"
         logger.debug(f"Fetching item details from: {item_url}")
-        
+
         response = requests.get(item_url)
-        logger.debug(f"Item service response: {response.status_code} - {response.text}")
-        
+        logger.debug(
+            f"Item service response: {response.status_code} - {response.text}")
+
         if response.status_code == 200:
             items.append(response.json())
         else:
@@ -260,7 +271,7 @@ def fetch_item_details_batch():
                 "Name": "Unknown Item",
                 "Description": "Item details unavailable"
             })
-    
+
     return jsonify({"items": items})
 
 
@@ -268,17 +279,47 @@ def fetch_item_details_batch():
 def get_room_info(room_id):
     """Gets room information without entering the room."""
     logger.debug(f"GET /room_info/{room_id} - Checking room info")
-    
+
     # This endpoint just forwarded to the room service
     room_url = f"{ROOM_SERVICE_URL}/room/{room_id}"
     logger.debug(f"Calling room service: {room_url}")
-    
+
     response = requests.get(room_url)
     if response.status_code != 200:
         logger.error(f"Failed to get room info: {response.text}")
         return jsonify({"error": "Room not found"}), 404
-    
+
     return jsonify(response.json())
+
+
+@app.route("/player_stats", methods=["GET"])
+def player_stats():
+    """Retrieves the player's stats from the player service."""
+    player_id = 1  # Hardcoded player ID
+
+    logger.debug(
+        f"GET /player_stats - Retrieving stats for player ID: {player_id}")
+
+    # Call the player service to get player data
+    player_url = f"{PLAYER_SERVICE_URL}/player/{player_id}"
+    logger.debug(f"Calling player service: {player_url}")
+
+    try:
+        response = requests.get(player_url)
+        logger.debug(
+            f"Player service response: {response.status_code} - {response.text}")
+
+        if response.status_code != 200:
+            logger.error(f"Failed to retrieve player stats: {response.text}")
+            return jsonify({"error": "Failed to retrieve player stats"}), response.status_code
+
+        # Return the player data
+        player_data = response.json()
+        return jsonify(player_data)
+
+    except requests.RequestException as e:
+        logger.error(f"Request error when calling player service: {str(e)}")
+        return jsonify({"error": "Failed to connect to player service"}), 500
 
 
 if __name__ == "__main__":

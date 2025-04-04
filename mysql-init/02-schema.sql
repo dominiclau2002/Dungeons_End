@@ -18,7 +18,6 @@ CREATE TABLE Enemy (
     Health INT NOT NULL,
     Damage INT NOT NULL, 
     Attack INT NOT NULL,
-    Points INT NOT NULL,
     Loot JSON DEFAULT NULL
 );
 
@@ -27,8 +26,7 @@ USE item_db;
 CREATE TABLE Item (
     ItemID INT AUTO_INCREMENT PRIMARY KEY,
     Name VARCHAR(50) UNIQUE NOT NULL,
-    Description VARCHAR(200) NOT NULL,
-    Points INT NOT NULL
+    Description VARCHAR(200) NOT NULL
 );
 
 -- ✅ Use `inventory_db`
@@ -43,8 +41,7 @@ CREATE TABLE Inventory (
 USE activity_log_db;
 CREATE TABLE ActivityLog (
     LogID INT AUTO_INCREMENT PRIMARY KEY,
-    PlayerID INT NOT NULL,
-    Action VARCHAR(255) NOT NULL,
+    Action ENUM('enemy_defeat', 'item_pickup', 'enter_room') NOT NULL,
     Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -52,9 +49,8 @@ CREATE TABLE ActivityLog (
 USE score_db;
 CREATE TABLE Score (
     ScoreID INT AUTO_INCREMENT PRIMARY KEY,
-    PlayerID INT NOT NULL,
     Points INT NOT NULL,
-    Reason ENUM('combat', 'item_collection') NOT NULL,
+    Reason ENUM('enemy_defeat', 'item_pickup', 'enter_room') NOT NULL,
     Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -71,23 +67,23 @@ CREATE TABLE Room (
 
 -- ✅ Sample Data for Items
 USE item_db;
-INSERT INTO Item (Name, Description, Points) VALUES
-('Golden Sword', 'A shiny golden sword with high damage', 100),
-('Leather Armor', 'Basic protective armor', 50),
-('Small Shield', 'A small wooden shield', 40),
-('Health Potion', 'Restores 50 health', 30),
-('Lockpick', 'Unlocks most doors', 40),
-('Magic Amulet', 'Grants resistance to magic', 80);
+INSERT INTO Item (Name, Description) VALUES
+('Golden Sword', 'A shiny golden sword with high damage'),
+('Leather Armor', 'Basic protective armor'),
+('Small Shield', 'A small wooden shield'),
+('Seaweed', 'Smells like seaweed'),
+('Lockpick', 'Unlocks most doors'),
+('Magic Amulet', 'Grants resistance to magic');
 
 -- Insert data into Enemy table
 USE enemy_db; 
-INSERT INTO Enemy (Name, Description, Health, Damage, Attack, Points)
+INSERT INTO Enemy (Name, Description, Health, Damage, Attack)
 VALUES
-('Goblin', 'A small green creature with a dagger', 50, 10, 1, 20),
-('Orc Warrior', 'A strong orc with an axe', 100, 20, 1, 50),
-('Skeleton Archer', 'A skeleton with a bow', 70, 15, 1, 35),
-('Dark Mage', 'A powerful mage casting spells', 80, 25, 1, 60),
-('Troll', 'A large troll with regeneration', 150, 30, 1, 90);
+('Goblin', 'A small green creature with a dagger', 50, 10, 1),
+('Orc Warrior', 'A strong orc with an axe', 100, 20, 1),
+('Skeleton Archer', 'A skeleton with a bow', 70, 15, 1),
+('Dark Mage', 'A powerful mage casting spells', 80, 25, 1),
+('Troll', 'A large troll with regeneration', 150, 30, 1);
 
 -- Insert data into Room table
 USE room_db;
@@ -101,4 +97,11 @@ VALUES
 USE player_db;
 INSERT INTO Player (Name, CharacterClass, Health, Damage, RoomID)
 VALUES
-('Player1', 'Warrior', 100, 10, 0); 
+('Player1', 'Warrior', 200, 10, 0);
+
+-- Insert sample score data
+USE score_db;
+INSERT INTO Score (Points, Reason) VALUES
+(200, 'enemy_defeat'),
+(150, 'item_pickup'),
+(100, 'enter_room'); 

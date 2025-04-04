@@ -12,7 +12,6 @@ class Enemy(db.Model):
     Health = db.Column(db.Integer, nullable=False)
     Damage = db.Column(db.Integer, nullable=False)
     Attack = db.Column(db.Integer, nullable=False)
-    Points = db.Column(db.Integer, nullable=False)
     Loot = db.Column(db.JSON, nullable=True)
 
     def to_dict(self):
@@ -23,6 +22,5 @@ class Enemy(db.Model):
             'health': self.Health,
             'damage': self.Damage,
             'attack': self.Attack,
-            'points': self.Points,
             'loot': self.Loot
         } 

@@ -15,9 +15,7 @@ logger = logging.getLogger(__name__)
 PLAYER_SERVICE_URL = os.getenv("PLAYER_SERVICE_URL", "http://player_service:5000")
 ENEMY_SERVICE_URL = os.getenv("ENEMY_SERVICE_URL", "http://enemy_service:5005")
 INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:5001")
-ITEM_SERVICE_URL = os.getenv("ITEM_SERVICE_URL", "http://item_service:5002")
 ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5016")
-SCORE_SERVICE_URL = os.getenv("SCORE_SERVICE_URL", "http://score_service:5008")
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 ACTIVITY_LOG_QUEUE = "activity_log_queue"
 

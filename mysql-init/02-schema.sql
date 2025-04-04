@@ -39,11 +39,14 @@ CREATE TABLE Inventory (
 
 -- ✅ Use `activity_log_db`
 USE activity_log_db;
+DROP TABLE IF EXISTS ActivityLog;
 CREATE TABLE ActivityLog (
     LogID INT AUTO_INCREMENT PRIMARY KEY,
-    Action ENUM('enemy_defeat', 'item_pickup', 'enter_room') NOT NULL,
+    PlayerID INT NOT NULL,
+    Action VARCHAR(255) NOT NULL,
     Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
 
 -- ✅ Use `score_db`
 USE score_db;

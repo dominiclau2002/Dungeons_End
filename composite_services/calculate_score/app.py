@@ -3,30 +3,50 @@ import requests
 import os
 import pika, json
 from datetime import datetime
+import logging
+from composite_services.utilities.activity_logger import log_activity
+
 
 app = Flask(__name__)
 
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 # ✅ Microservice URL
 SCORE_SERVICE_URL = os.getenv("SCORE_SERVICE_URL", "http://score_service:5015")
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-ACTIVITY_LOG_QUEUE = "activity_log_queue"
+ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 
-def send_activity_log(player_id, action):
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
-    channel = connection.channel()
-    channel.queue_declare(queue=ACTIVITY_LOG_QUEUE, durable=True)
-    message = {
-        "player_id": player_id,
-        "action": action,
-        "timestamp": datetime.utcnow().isoformat()
-    }
-    channel.basic_publish(
-        exchange='',
-        routing_key=ACTIVITY_LOG_QUEUE,
-        body=json.dumps(message),
-        properties=pika.BasicProperties(delivery_mode=2)
-    )
-    connection.close()
+# def log_activity(player_id, action):
+#     """
+#     Logs player activity by making a REST API call to the activity_log_service.
+#     """
+#     if not player_id or not action:
+#         logger.error("Missing required parameters for logging: player_id and action must be provided")
+#         return False
+        
+#     url = f"{ACTIVITY_LOG_SERVICE_URL}/api/log"
+#     data = {
+#         "player_id": player_id,
+#         "action": action,
+#         "timestamp": datetime.utcnow().isoformat()
+#     }
+    
+#     try:
+#         response = requests.post(url, json=data, timeout=5)
+        
+#         if response.status_code == 201:
+#             logger.debug(f"Activity logged successfully: Player {player_id} - {action}")
+#             return True
+#         else:
+#             logger.error(f"Failed to log activity: {response.status_code} - {response.text}")
+#             return False
+#     except requests.exceptions.RequestException as e:
+#         logger.error(f"Error connecting to activity log service: {str(e)}")
+#         return False
+#     except Exception as e:
+#         logger.error(f"Unexpected error logging activity: {str(e)}")
+#         return False
 
 @app.route('/calculate_score/<int:player_id>', methods=['GET'])
 def calculate_final_score(player_id):
@@ -44,7 +64,8 @@ def calculate_final_score(player_id):
     final_score = sum(score["Points"] for score in scores)
 
     # ✅ Log score calculation via RabbitMQ
-    send_activity_log(player_id, f"Final score calculated: {final_score}")
+    log_activity(player_id, f"Final score calculated: {final_score}")
+
 
     return jsonify({
         "player_id": player_id,

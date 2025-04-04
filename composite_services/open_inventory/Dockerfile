@@ -2,15 +2,17 @@
 FROM python:3.12
 
 WORKDIR /app
-
+ENV PYTHONPATH=/app
 # Copy service script
-COPY . /app/
+COPY composite_services/open_inventory/app.py /app/app.py
 
-# Copy necessary files
-COPY . .
+COPY composite_services/open_inventory/wait-for-it.sh /app/wait-for-it.sh
+
+# Include shared logging module
+COPY composite_services/utilities /app/composite_services/utilities
 
 # Install dependencies (use the global `requirements.txt`)
-COPY ./requirements.txt /app/
+COPY requirements.txt /app/
 
 RUN apt-get update && apt-get install -y netcat-openbsd && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -24,4 +26,4 @@ RUN chmod +x /app/wait-for-it.sh
 EXPOSE 5010
 
 # Wait for MySQL before starting Flask
-CMD ["/app/wait-for-it.sh", "mysql:3306", "--", "python", "-m", "app"]
+CMD ["/app/wait-for-it.sh", "mysql:3306", "--", "python", "app.py"]

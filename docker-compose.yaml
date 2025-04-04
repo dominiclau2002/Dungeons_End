@@ -151,8 +151,12 @@ services:
       rabbitmq:
         condition: service_started
 
+  # Example updates for docker-compose.yaml
+
   fight_enemy_service:
-    build: ./composite_services/fight_enemy
+    build:
+      context: .
+      dockerfile: composite_services/fight_enemy/Dockerfile
     restart: always
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
@@ -161,7 +165,7 @@ services:
       SCORE_SERVICE_URL: http://score_service:5008
       ROOM_SERVICE_URL: http://room_service:5016
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
-      RABBITMQ_HOST: rabbitmq
+      # RABBITMQ_HOST: rabbitmq  # This line should be removed
     ports:
       - "5009:5009"
     depends_on:
@@ -173,7 +177,9 @@ services:
       - room_service
 
   entering_room_service:
-    build: ./composite_services/entering_room
+    build:
+      context: .
+      dockerfile: composite_services/entering_room/Dockerfile
     restart: always
     environment:
       ROOM_SERVICE_URL: http://room_service:5016
@@ -183,7 +189,7 @@ services:
       ITEM_SERVICE_URL: http://item_service:5002
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
       INVENTORY_SERVICE_URL: http://inventory_service:5001
-
+      # RABBITMQ_HOST: rabbitmq  # This line should be removed
     ports:
       - "5011:5011"
     depends_on:
@@ -195,12 +201,15 @@ services:
       - room_service
 
   manage_game_service:
-    build: ./composite_services/manage_game
+    build:
+      context: .
+      dockerfile: composite_services/manage_game/Dockerfile
     restart: always
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
       ENEMY_SERVICE_URL: http://enemy_service:5005
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+      # RABBITMQ_HOST: rabbitmq  # This line should be removed
     ports:
       - "5014:5014"
     depends_on:
@@ -209,54 +218,68 @@ services:
       - activity_log_service
 
   open_inventory_service:
-    build: ./composite_services/open_inventory
+    build:
+      context: .
+      dockerfile: composite_services/open_inventory/Dockerfile
     restart: always
     environment:
       INVENTORY_SERVICE_URL: http://inventory_service:5001
       ITEM_SERVICE_URL: http://item_service:5002
+      ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+      # RABBITMQ_HOST: rabbitmq  # This line should be removed
     ports:
       - "5010:5010"
     depends_on:
       - inventory_service
       - item_service
+      - activity_log_service
 
   pick_up_item_service:
-    build: ./composite_services/pick_up_item
+    build:
+      context: .
+      dockerfile: composite_services/pick_up_item/Dockerfile
     restart: always
     environment:
       ROOM_SERVICE_URL: http://room_service:5016
       INVENTORY_SERVICE_URL: http://inventory_service:5001
       ITEM_SERVICE_URL: http://item_service:5002
       APPLY_ITEM_EFFECTS_SERVICE_URL: http://apply_item_effects_service:5025
-      RABBITMQ_HOST: rabbitmq
+      ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+      # RABBITMQ_HOST: rabbitmq  # This line should be removed
     ports:
       - "5019:5019"
     depends_on:
       - room_service
       - inventory_service
       - item_service
-      - rabbitmq
       - apply_item_effects_service
+      - activity_log_service
 
   apply_item_effects_service:
-    build: ./composite_services/apply_item_effects
+    build:
+      context: .
+      dockerfile: composite_services/apply_item_effects/Dockerfile
     restart: always
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
       ITEM_SERVICE_URL: http://item_service:5002
-      RABBITMQ_HOST: rabbitmq
+      ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+      # RABBITMQ_HOST: rabbitmq  # This line should be removed
     ports:
       - "5025:5025"
     depends_on:
       - player_service
       - item_service
-      - rabbitmq
+      - activity_log_service
 
   calculate_score_service:
-    build: ./composite_services/calculate_score
+    build:
+      context: .
+      dockerfile: composite_services/calculate_score/Dockerfile
     restart: always
     environment:
       SCORE_SERVICE_URL: http://score_service:5008
+      ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
     ports:
       - "5015:5015"
     depends_on:
@@ -271,7 +294,9 @@ services:
   #   depends_on:
   #     - player_service
   web_app:
-    build: ./web
+    build:
+      context: .
+      dockerfile: web/Dockerfile
     restart: always
     ports:
       - "5050:5050"

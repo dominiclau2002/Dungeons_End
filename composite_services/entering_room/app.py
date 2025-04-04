@@ -5,6 +5,8 @@ import pika
 import json
 from datetime import datetime
 import logging
+from composite_services.utilities.activity_logger import log_activity
+
 
 app = Flask(__name__)
 
@@ -18,29 +20,40 @@ PLAYER_SERVICE_URL = os.getenv(
 ENEMY_SERVICE_URL = os.getenv("ENEMY_SERVICE_URL", "http://enemy_service:5005")
 ITEM_SERVICE_URL = os.getenv("ITEM_SERVICE_URL", "http://item_service:5002")
 ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5016")
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-ACTIVITY_LOG_QUEUE = "activity_log_queue"
 # Fix: Use the actual atomic inventory service, not the composite service
 INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:5001")
+ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 
-
-def send_activity_log(player_id, action):
-    connection = pika.BlockingConnection(
-        pika.ConnectionParameters(host=RABBITMQ_HOST))
-    channel = connection.channel()
-    channel.queue_declare(queue=ACTIVITY_LOG_QUEUE, durable=True)
-    message = {
-        "player_id": player_id,
-        "action": action,
-        "timestamp": datetime.utcnow().isoformat()
-    }
-    channel.basic_publish(
-        exchange='',
-        routing_key=ACTIVITY_LOG_QUEUE,
-        body=json.dumps(message),
-        properties=pika.BasicProperties(delivery_mode=2)
-    )
-    connection.close()
+# def log_activity(player_id, action):
+#     """
+#     Logs player activity by making a REST API call to the activity_log_service.
+#     """
+#     if not player_id or not action:
+#         logger.error("Missing required parameters for logging: player_id and action must be provided")
+#         return False
+        
+#     url = f"{ACTIVITY_LOG_SERVICE_URL}/api/log"
+#     data = {
+#         "player_id": player_id,
+#         "action": action,
+#         "timestamp": datetime.utcnow().isoformat()
+#     }
+    
+#     try:
+#         response = requests.post(url, json=data, timeout=5)
+        
+#         if response.status_code == 201:
+#             logger.debug(f"Activity logged successfully: Player {player_id} - {action}")
+#             return True
+#         else:
+#             logger.error(f"Failed to log activity: {response.status_code} - {response.text}")
+#             return False
+#     except requests.exceptions.RequestException as e:
+#         logger.error(f"Error connecting to activity log service: {str(e)}")
+#         return False
+#     except Exception as e:
+#         logger.error(f"Unexpected error logging activity: {str(e)}")
+#         return False
 
 
 @app.route('/room/<int:room_id>', methods=['POST'])
@@ -209,7 +222,8 @@ def enter_room(room_id):
 
     # ✅ Log room entry via RabbitMQ
     room_name = room.get('name') or room.get('Name') or f"Room {room_id}"
-    send_activity_log(player_id, f"Entered Room {room_id}: {room_name}")
+    log_activity(player_id, f"Entered Room {room_id}: {room_name}")
+
 
     # ✅ Fetch items in the room - Handle all possible data structures
     items = []

@@ -1,11 +1,11 @@
 from flask import Flask, jsonify, request
 import requests
 import os
-import pika
-import json
 import logging
 from datetime import datetime
 import time
+from composite_services.utilities.activity_logger import log_activity
+
 
 app = Flask(__name__)
 
@@ -15,37 +15,41 @@ logger = logging.getLogger(__name__)
 
 # Microservice URLs
 ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5016")
-INVENTORY_SERVICE_URL = os.getenv(
-    "INVENTORY_SERVICE_URL", "http://inventory_service:5001")
+INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:5001")
 ITEM_SERVICE_URL = os.getenv("ITEM_SERVICE_URL", "http://item_service:5002")
 APPLY_ITEM_EFFECTS_SERVICE_URL = os.getenv("APPLY_ITEM_EFFECTS_SERVICE_URL", "http://apply_item_effects_service:5025")
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-ACTIVITY_LOG_QUEUE = "activity_log_queue"
+ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 
-
-def send_activity_log(player_id, action):
-    """Send an activity log message to RabbitMQ"""
-    try:
-        connection = pika.BlockingConnection(
-            pika.ConnectionParameters(host=RABBITMQ_HOST))
-        channel = connection.channel()
-        channel.queue_declare(queue=ACTIVITY_LOG_QUEUE, durable=True)
-        message = {
-            "player_id": player_id,
-            "action": action,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        channel.basic_publish(
-            exchange='',
-            routing_key=ACTIVITY_LOG_QUEUE,
-            body=json.dumps(message),
-            properties=pika.BasicProperties(delivery_mode=2)
-        )
-        connection.close()
-        logger.debug(f"Activity log sent: {action}")
-    except Exception as e:
-        logger.error(f"Failed to send activity log: {str(e)}")
-
+# def log_activity(player_id, action):
+#     """
+#     Logs player activity by making a REST API call to the activity_log_service.
+#     """
+#     if not player_id or not action:
+#         logger.error("Missing required parameters for logging: player_id and action must be provided")
+#         return False
+        
+#     url = f"{ACTIVITY_LOG_SERVICE_URL}/api/log"
+#     data = {
+#         "player_id": player_id,
+#         "action": action,
+#         "timestamp": datetime.utcnow().isoformat()
+#     }
+    
+#     try:
+#         response = requests.post(url, json=data, timeout=5)
+        
+#         if response.status_code == 201:
+#             logger.debug(f"Activity logged successfully: Player {player_id} - {action}")
+#             return True
+#         else:
+#             logger.error(f"Failed to log activity: {response.status_code} - {response.text}")
+#             return False
+#     except requests.exceptions.RequestException as e:
+#         logger.error(f"Error connecting to activity log service: {str(e)}")
+#         return False
+#     except Exception as e:
+#         logger.error(f"Unexpected error logging activity: {str(e)}")
+#         return False
 
 @app.route('/room/<int:room_id>/item/<int:item_id>/pickup', methods=['POST'])
 def pick_up_item(room_id, item_id):
@@ -165,9 +169,9 @@ def pick_up_item(room_id, item_id):
 
     logger.debug("Item successfully added to inventory")
 
-    # Step 5: Log the activity via RabbitMQ
+    # Step 5: Log the activity via activity log service
     log_message = f"Picked up {item_name} (ID: {item_id}) from room {room_id}"
-    send_activity_log(player_id, log_message)
+    log_activity(player_id, log_message)
     
     # Step 6: Check for special item effects and apply them
     response_data = {
@@ -228,12 +232,11 @@ def activity_log():
     if not player_id or not action:
         return jsonify({"error": "player_id and action are required"}), 400
     
-    try:
-        send_activity_log(player_id, action)
+    success = log_activity(player_id, action)
+    if success:
         return jsonify({"message": "Activity logged successfully"}), 200
-    except Exception as e:
-        logger.error(f"Failed to log activity: {str(e)}")
-        return jsonify({"error": f"Failed to log activity: {str(e)}"}), 500
+    else:
+        return jsonify({"error": "Failed to log activity"}), 500
 
 
 if __name__ == '__main__':

@@ -1,7 +1,10 @@
 from flask import Flask, render_template, request, jsonify
 import requests
 import os
+from datetime import datetime
 import logging
+from composite_services.utilities.activity_logger import log_activity
+
 
 app = Flask(__name__)
 
@@ -24,12 +27,47 @@ ROOM_SERVICE_URL = os.getenv(
     "ROOM_SERVICE_URL", "http://room_service:5030")
 COMBAT_SERVICE_URL = os.getenv(
     "COMBAT_SERVICE_URL", "http://fight_enemy_service:5009")
+ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
+
+
+# def log_activity(player_id, action):
+#     """
+#     Logs player activity by making a REST API call to the activity_log_service.
+#     """
+#     if not player_id or not action:
+#         logger.error("Missing required parameters for logging: player_id and action must be provided")
+#         return False
+        
+#     url = f"{ACTIVITY_LOG_SERVICE_URL}/api/log"
+#     data = {
+#         "player_id": player_id,
+#         "action": action,
+#         "timestamp": datetime.utcnow().isoformat()
+#     }
+    
+#     try:
+#         response = requests.post(url, json=data, timeout=5)
+        
+#         if response.status_code == 201:
+#             logger.debug(f"Activity logged successfully: Player {player_id} - {action}")
+#             return True
+#         else:
+#             logger.error(f"Failed to log activity: {response.status_code} - {response.text}")
+#             return False
+#     except requests.exceptions.RequestException as e:
+#         logger.error(f"Error connecting to activity log service: {str(e)}")
+#         return False
+#     except Exception as e:
+#         logger.error(f"Unexpected error logging activity: {str(e)}")
+#         return False
 
 
 @app.route("/")
 def home():
     """Renders the game UI."""
     return render_template("index.html")
+
+
 
 
 @app.route("/get_player_room", methods=["GET"])
@@ -173,6 +211,9 @@ def view_inventory():
     logger.debug(
         f"GET /view_inventory - Retrieving inventory for player ID: {player_id}")
 
+    # Log the inventory view activity
+    log_activity(player_id, "Viewed inventory")
+
     # Call the open_inventory service
     inventory_url = f"{OPEN_INVENTORY_SERVICE_URL}/inventory/{player_id}"
     logger.debug(f"Calling inventory service: {inventory_url}")
@@ -193,7 +234,6 @@ def view_inventory():
         "player_id": player_id,
         "items": inventory_data.get("inventory", [])
     })
-
 
 @app.route("/fetch_item_details", methods=["GET"])
 def fetch_item_details():

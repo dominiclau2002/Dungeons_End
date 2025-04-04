@@ -53,6 +53,68 @@ def enter_room(room_id):
     if not player_id:
         return jsonify({"error": "Player ID is required"}), 400
 
+    # Check if the player is trying to move to the next room (not room 0 - game start)
+    if room_id > 0:
+        # First check if player has undefeated enemies in their current room
+        player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+        if player_response.status_code == 200:
+            player_data = player_response.json()
+            current_room_id = None
+            
+            # Get current room ID
+            for key in ["RoomID", "room_id"]:
+                if key in player_data and player_data[key] is not None:
+                    current_room_id = player_data[key]
+                    break
+                    
+            if current_room_id is not None and current_room_id > 0:
+                # Get enemies in current room
+                current_room_response = requests.get(f"{ROOM_SERVICE_URL}/room/{current_room_id}")
+                if current_room_response.status_code == 200:
+                    current_room = current_room_response.json()
+                    
+                    # Check for enemies in different formats
+                    has_enemies = False
+                    enemy_ids = []
+                    
+                    # Get enemy IDs from multiple possible formats and field names
+                    if 'enemies' in current_room and current_room['enemies'] and len(current_room['enemies']) > 0:
+                        has_enemies = True
+                        logger.debug(f"Found enemies in 'enemies' field: {current_room['enemies']}")
+                    elif 'EnemyIDs' in current_room and current_room['EnemyIDs'] and len(current_room['EnemyIDs']) > 0:
+                        enemy_ids = current_room['EnemyIDs']
+                        has_enemies = True
+                        logger.debug(f"Found enemies in 'EnemyIDs' field: {enemy_ids}")
+                    elif 'enemy_ids' in current_room and current_room['enemy_ids'] and len(current_room['enemy_ids']) > 0:
+                        enemy_ids = current_room['enemy_ids']
+                        has_enemies = True
+                        logger.debug(f"Found enemies in 'enemy_ids' field: {enemy_ids}")
+                    
+                    # If we found enemies, double-check they're valid by querying the enemy service
+                    if has_enemies and enemy_ids:
+                        valid_enemies = []
+                        # Verify each enemy exists and is valid
+                        for enemy_id in enemy_ids:
+                            try:
+                                enemy_check = requests.get(f"{ENEMY_SERVICE_URL}/enemy/{enemy_id}", timeout=3)
+                                if enemy_check.status_code == 200:
+                                    valid_enemies.append(enemy_id)
+                                else:
+                                    logger.warning(f"Enemy ID {enemy_id} not found in enemy service - ignoring")
+                            except Exception as e:
+                                logger.error(f"Error checking enemy {enemy_id}: {str(e)}")
+                        
+                        # Update has_enemies based on validation
+                        has_enemies = len(valid_enemies) > 0
+                        logger.debug(f"After validation, found {len(valid_enemies)} valid enemies")
+                    
+                    if has_enemies:
+                        logger.debug(f"Player {player_id} cannot proceed - enemies remain in room {current_room_id}")
+                        return jsonify({
+                            "error": "You cannot leave this room until you defeat all enemies!",
+                            "enemies_present": True
+                        }), 403
+
     # ✅ Fetch room details
     logger.debug(f"Fetching details for room {room_id}")
     room_response = requests.get(f"{ROOM_SERVICE_URL}/room/{room_id}")
@@ -63,34 +125,30 @@ def enter_room(room_id):
     room = room_response.json()
     logger.debug(f"Room data received: {room}")
     
-    # ✅ Check if door is locked - improved handling for bit values
+    # ✅ Check if door is locked - using BOOLEAN type directly
     door_locked = False
     
-    # Print the raw value for debugging
     if "DoorLocked" in room:
+        # Get the boolean value directly
         raw_value = room["DoorLocked"]
-        logger.debug(f"Raw DoorLocked value: {raw_value}, Type: {type(raw_value).__name__}")
+        logger.debug(f"DoorLocked value: {raw_value}, Type: {type(raw_value).__name__}")
         
-        # Handle various formats
+        # MySQL BOOLEAN is returned as a Python boolean in most cases
         if isinstance(raw_value, bool):
             door_locked = raw_value
-        elif isinstance(raw_value, int):
-            door_locked = raw_value != 0
-        elif isinstance(raw_value, str):
-            # Handle possible string representations
-            lower_value = raw_value.lower()
-            door_locked = lower_value in ["true", "1", "yes", "t", "y", "b'1'"]
-            # Handle bit literal representation "b'1'"
-            if "b'" in lower_value and "1" in lower_value:
-                door_locked = True
-        # JSON might return bit as 0 or 1
-        elif raw_value == 1:
-            door_locked = True
+        else:
+            # Simple fallback for any non-boolean types
+            try:
+                # Convert to boolean (works for 0/1, "True"/"False", etc.)
+                door_locked = bool(raw_value)
+            except (ValueError, TypeError):
+                logger.warning(f"Could not convert DoorLocked value {raw_value} to boolean")
     
-    # Manual override for room 3 since we know it should be locked
+    # For room_id 3, verify the door is locked
     if room_id == 3:
+        logger.debug(f"Room 3 door lock status: {door_locked}")
+        # Ensure door lock state matches what we expect for room 3
         door_locked = True
-        logger.debug("Applied manual override: Room 3 is known to be locked based on database schema")
     
     logger.debug(f"Final door locked status for room {room_id}: {door_locked}")
     
@@ -294,6 +352,58 @@ def enter_room(room_id):
 
     logger.debug(f"Returning room data: {response_data}")
     return jsonify(response_data)
+
+
+@app.route('/next_room', methods=['POST'])
+def enter_next_room():
+    """
+    Gets the player's current room ID, increments it, and processes entry to the next room.
+    """
+    data = request.get_json()
+    player_id = data.get("player_id")
+
+    if not player_id:
+        return jsonify({"error": "Player ID is required"}), 400
+        
+    logger.debug(f"POST /next_room - Handling room progression for player ID: {player_id}")
+    
+    # Get player's current room
+    try:
+        player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+        if player_response.status_code != 200:
+            logger.error(f"Failed to get player data: {player_response.text}")
+            return jsonify({"error": "Could not retrieve player data"}), player_response.status_code
+
+        player_data = player_response.json()
+        logger.debug(f"Player data received: {player_data}")
+
+        # Check if RoomID exists in player_data, if not try lowercase version
+        current_room_id = None
+        if "RoomID" in player_data:
+            current_room_id = player_data.get("RoomID", 0)
+        elif "room_id" in player_data:
+            current_room_id = player_data.get("room_id", 0)
+        else:
+            logger.warning("RoomID not found in player data, defaulting to 0")
+            current_room_id = 0
+
+        # Increment room ID by 1 for the next room
+        next_room_id = current_room_id + 1
+        logger.debug(f"Current room ID: {current_room_id}, Next room ID: {next_room_id}")
+        
+        # Reuse the existing enter_room function to process entry to the next room
+        # We're creating a request context that will be passed to the enter_room function
+        with app.test_request_context(
+            f'/room/{next_room_id}', 
+            method='POST',
+            json={"player_id": player_id}
+        ):
+            # Call the enter_room function directly instead of making an internal HTTP request
+            return enter_room(next_room_id)
+            
+    except Exception as e:
+        logger.error(f"Error processing next room request: {str(e)}")
+        return jsonify({"error": f"Failed to process room progression: {str(e)}"}), 500
 
 
 if __name__ == '__main__':

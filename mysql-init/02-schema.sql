@@ -65,7 +65,7 @@ CREATE TABLE Room (
     Description VARCHAR(200),
     ItemIDs JSON,
     EnemyIDs JSON,
-    DoorLocked BIT,
+    DoorLocked BOOLEAN,
     PRIMARY KEY (RoomID)
 );
 
@@ -84,18 +84,18 @@ USE enemy_db;
 INSERT INTO Enemy (Name, Description, Health, Damage, Attack, Points)
 VALUES
 ('Goblin', 'A small green creature with a dagger', 50, 10, 1, 20),
-('Orc Warrior', 'A strong orc with an axe', 100, 20, 2, 50),
-('Skeleton Archer', 'A skeleton with a bow', 70, 15, 2, 35),
-('Dark Mage', 'A powerful mage casting spells', 80, 25, 3, 60),
-('Troll', 'A large troll with regeneration', 150, 30, 4, 90);
+('Orc Warrior', 'A strong orc with an axe', 100, 20, 1, 50),
+('Skeleton Archer', 'A skeleton with a bow', 70, 15, 1, 35),
+('Dark Mage', 'A powerful mage casting spells', 80, 25, 1, 60),
+('Troll', 'A large troll with regeneration', 150, 30, 1, 90);
 
 -- Insert data into Room table
 USE room_db;
 INSERT INTO Room (Description, ItemIDs, EnemyIDs, DoorLocked)
 VALUES
-('A dark room with a treasure chest', '[1, 2]', '[]', b'0'),
-('A bright room with a fountain', '[3, 5]', '[1]', b'0'),
-('A mysterious cave', '[4]', '[2]', b'1');
+('A dark room with a treasure chest', '[1, 2]', '[]', FALSE),
+('A bright room with a fountain', '[3, 5]', '[1]', FALSE),
+('A mysterious cave', '[4]', '[2]', TRUE);
 
 -- Insert data into Player table
 USE player_db;

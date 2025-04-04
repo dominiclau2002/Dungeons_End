@@ -78,15 +78,15 @@ services:
       mysql:
         condition: service_healthy
 
-  character_service:
-    build: ./atomic_services/character
-    restart: always
-    environment:
-      DATABASE_URL: mysql+mysqlconnector://user:password@mysql/character_db
-    ports:
-      - "5003:5003"
-    depends_on:
-      - mysql
+  # character_service:
+  #   build: ./atomic_services/character
+  #   restart: always
+  #   environment:
+  #     DATABASE_URL: mysql+mysqlconnector://user:password@mysql/character_db
+  #   ports:
+  #     - "5003:5003"
+  #   depends_on:
+  #     - mysql
 
   enemy_service:
     build: ./atomic_services/enemy
@@ -158,7 +158,10 @@ services:
       PLAYER_SERVICE_URL: http://player_service:5000
       ENEMY_SERVICE_URL: http://enemy_service:5005
       DICE_SERVICE_URL: http://dice_service:5007
+      SCORE_SERVICE_URL: http://score_service:5008
+      ROOM_SERVICE_URL: http://room_service:5016
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+      RABBITMQ_HOST: rabbitmq
     ports:
       - "5009:5009"
     depends_on:
@@ -166,6 +169,8 @@ services:
       - enemy_service
       - activity_log_service
       - dice_service
+      - score_service
+      - room_service
 
   entering_room_service:
     build: ./composite_services/entering_room
@@ -222,12 +227,28 @@ services:
       ROOM_SERVICE_URL: http://room_service:5016
       INVENTORY_SERVICE_URL: http://inventory_service:5001
       ITEM_SERVICE_URL: http://item_service:5002
+      APPLY_ITEM_EFFECTS_SERVICE_URL: http://apply_item_effects_service:5025
       RABBITMQ_HOST: rabbitmq
     ports:
       - "5019:5019"
     depends_on:
       - room_service
       - inventory_service
+      - item_service
+      - rabbitmq
+      - apply_item_effects_service
+
+  apply_item_effects_service:
+    build: ./composite_services/apply_item_effects
+    restart: always
+    environment:
+      PLAYER_SERVICE_URL: http://player_service:5000
+      ITEM_SERVICE_URL: http://item_service:5002
+      RABBITMQ_HOST: rabbitmq
+    ports:
+      - "5025:5025"
+    depends_on:
+      - player_service
       - item_service
       - rabbitmq
 
@@ -240,15 +261,15 @@ services:
       - "5015:5015"
     depends_on:
       - score_service
-  select_character_service:
-    build: ./composite_services/select_character
-    restart: always
-    environment:
-      PLAYER_SERVICE_URL: http://player_service:5000
-    ports:
-      - "5017:5017"
-    depends_on:
-      - player_service
+  # select_character_service:
+  #   build: ./composite_services/select_character
+  #   restart: always
+  #   environment:
+  #     PLAYER_SERVICE_URL: http://player_service:5000
+  #   ports:
+  #     - "5017:5017"
+  #   depends_on:
+  #     - player_service
   web_app:
     build: ./web
     restart: always
@@ -258,13 +279,15 @@ services:
       PLAYER_SERVICE_URL: http://player_service:5000
       ENTERING_ROOM_SERVICE_URL: http://entering_room_service:5011
       FIGHT_ENEMY_SERVICE_URL: http://fight_enemy_service:5009
-      INVENTORY_SERVICE_URL: http://open_inventory_service:5010
-      SELECT_CHARACTER_URL: http://select_character_service:5017/select_character
+      OPEN_INVENTORY_SERVICE_URL: http://open_inventory_service:5010
       PICK_UP_ITEM_SERVICE_URL: http://pick_up_item_service:5019
+      ROOM_SERVICE_URL: http://room_service:5016
+      ITEM_SERVICE_URL: http://item_service:5002
     depends_on:
       - player_service
       - entering_room_service
       - fight_enemy_service
       - open_inventory_service
-      - select_character_service
       - pick_up_item_service
+      - room_service
+      - item_service

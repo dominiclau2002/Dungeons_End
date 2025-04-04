@@ -17,6 +17,7 @@ ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5016")
 INVENTORY_SERVICE_URL = os.getenv(
     "INVENTORY_SERVICE_URL", "http://inventory_service:5001")
 ITEM_SERVICE_URL = os.getenv("ITEM_SERVICE_URL", "http://item_service:5002")
+APPLY_ITEM_EFFECTS_SERVICE_URL = os.getenv("APPLY_ITEM_EFFECTS_SERVICE_URL", "http://apply_item_effects_service:5025")
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 ACTIVITY_LOG_QUEUE = "activity_log_queue"
 
@@ -139,13 +140,72 @@ def pick_up_item(room_id, item_id):
     # Step 5: Log the activity via RabbitMQ
     log_message = f"Picked up {item_name} (ID: {item_id}) from room {room_id}"
     send_activity_log(player_id, log_message)
-
-    return jsonify({
+    
+    # Step 6: Check for special item effects and apply them
+    response_data = {
         "message": f"Successfully picked up {item_name}",
         "player_id": player_id,
         "item_id": item_id,
-        "room_id": room_id
-    }), 200
+        "room_id": room_id,
+        "item_name": item_name
+    }
+    
+    try:
+        # Call the apply_item_effects service to apply any special effects
+        effects_url = f"{APPLY_ITEM_EFFECTS_SERVICE_URL}/apply_item_effect"
+        effects_data = {
+            "player_id": player_id,
+            "item_id": item_id
+        }
+        
+        logger.debug(f"Calling apply_item_effects service: {effects_url} with data: {effects_data}")
+        effects_response = requests.post(effects_url, json=effects_data)
+        
+        if effects_response.status_code == 200:
+            effects_data = effects_response.json()
+            logger.debug(f"Item effects response: {effects_data}")
+            
+            # If the item had special effects, include them in response
+            if effects_data.get("effect_applied", False):
+                response_data["effect_applied"] = True
+                response_data["effect_description"] = effects_data.get("effect_description", "")
+                
+                # Include any additional effect data from the effects service
+                for key, value in effects_data.items():
+                    if key not in ["message", "item_id", "item_name", "effect_applied", "effect_description"]:
+                        response_data[key] = value
+        else:
+            logger.warning(f"Failed to apply item effects: {effects_response.text}")
+    except Exception as e:
+        logger.error(f"Error calling apply_item_effects service: {str(e)}")
+        # Continue even if effects service fails - the item is still picked up
+
+    return jsonify(response_data), 200
+
+
+@app.route('/activity/log', methods=['POST'])
+def activity_log():
+    """
+    Endpoint for logging player activities.
+    Expects JSON with player_id and action.
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+        
+    player_id = data.get("player_id")
+    action = data.get("action")
+    
+    if not player_id or not action:
+        return jsonify({"error": "player_id and action are required"}), 400
+    
+    try:
+        send_activity_log(player_id, action)
+        return jsonify({"message": "Activity logged successfully"}), 200
+    except Exception as e:
+        logger.error(f"Failed to log activity: {str(e)}")
+        return jsonify({"error": f"Failed to log activity: {str(e)}"}), 500
 
 
 if __name__ == '__main__':

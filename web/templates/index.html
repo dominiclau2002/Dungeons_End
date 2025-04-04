@@ -3,97 +3,205 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Text Adventure Game</title>
+    <title>Pixel Dungeon Adventure</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap">
     <style>
+      :root {
+        --parchment: #f8f0d8;
+        --wood-dark: #5c4033;
+        --wood-medium: #8b5a2b;
+        --wood-light: #cd853f;
+        --stone-dark: #626262;
+        --stone-light: #a0a0a0;
+        --blood-red: #8b0000;
+        --forest-green: #2e8b57;
+        --gold: #daa520;
+        --pixel-border: 4px;
+        --bg-color: #33333379;
+        --parchment-dark: #e8d8b0;
+      }
+      
       body {
-        font-family: Arial, sans-serif;
+        font-family: 'VT323', monospace;
+        font-size: 18px;
+        background-image: linear-gradient(rgba(0, 0, 24, 0.555), rgba(0, 0, 24, 0.555)), url('/static/images/brick.jpg');
+        background-size: 200px 200px;
+        background-repeat: repeat;
+        color: #000;
         text-align: center;
-        margin: 20px;
+        margin: 0;
+        padding: 20px;
+        line-height: 1.3;
       }
+      
+      h1 {
+        font-family: 'Press Start 2P', cursive;
+        color: var(--gold);
+        text-shadow: 2px 2px 0 #000;
+        font-size: 24px;
+        margin: 15px 0;
+        letter-spacing: 2px;
+      }
+      
+      /* Pixel border utility class */
+      .pixel-border {
+        position: relative;
+        border: var(--pixel-border) solid var(--wood-dark);
+        box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.2),
+                    inset -2px -2px 0 rgba(0, 0, 0, 0.2);
+      }
+      
+      .pixel-border:before {
+        content: "";
+        position: absolute;
+        top: calc(-1 * var(--pixel-border));
+        left: calc(-1 * var(--pixel-border));
+        right: calc(-1 * var(--pixel-border));
+        bottom: calc(-1 * var(--pixel-border));
+        border: var(--pixel-border) solid #000;
+        pointer-events: none;
+      }
+      
+      /* Main game log */
       #game-log {
-        border: 1px solid black;
-        padding: 10px;
-        height: 350px; /* Reduced height to make room for panels */
+        font-family: 'VT323', monospace;
+        font-size: 20px;
+        background-color: var(--parchment);
+        background-image: none;
+        background-repeat: repeat;
+        color: #000;
+        padding: 15px;
+        height: 350px; /* Fixed height - do not change */
+        min-height: 350px; /* Added min-height to prevent shrinking */
         overflow-y: auto;
-        margin-bottom: 20px;
+        margin: 20px auto;
         text-align: left;
+        max-width: 800px;
+        width: 90%;
+        border: 8px solid var(--wood-dark);
+        box-shadow: inset 0 0 0 4px var(--wood-light);
       }
+      
+      #game-log p {
+        margin: 8px 0;
+        line-height: 1.4;
+      }
+      
+      /* Buttons */
       button {
+        font-family: 'Press Start 2P', cursive;
         margin: 10px;
         padding: 10px 20px;
-        font-size: 16px;
+        font-size: 14px;
         cursor: pointer;
+        background-color: var(--wood-medium);
+        color: white;
+        border: 4px solid #000;
+        box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.2),
+                    inset -4px -4px 0 rgba(0, 0, 0, 0.2);
+        text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+        transition: all 0.1s;
       }
+      
+      button:hover {
+        transform: scale(1.05);
+      }
+      
+      button:active {
+        transform: scale(0.95);
+      }
+      
       #reset-button {
-        background-color: #ffaa00;
-        display: none; /* Hidden by default */
+        background-color: var(--blood-red);
+        display: none;
       }
+      
       #inventory-button {
-        background-color: #4a89dc; /* Blue color for inventory button */
-        color: white;
+        background-color: var(--gold);
+        color: #000;
       }
+      
       #stats-button {
-        background-color: #9b59b6; /* Purple color for stats button */
-        color: white;
+        background-color: var(--forest-green);
       }
+      
+      /* Text colors */
       .item {
-        color: #228b22; /* Forest green for items */
-      }
-      .enemy {
-        color: #b22222; /* Firebrick red for enemies */
-      }
-      .inventory-item {
-        color: #9932cc; /* Purple for inventory items */
-      }
-      .player-stats {
-        color: #9b59b6; /* Purple for player stats */
+        color: var(--forest-green);
         font-weight: bold;
       }
-      .stats-value {
-        color: #3498db; /* Blue for the stat values */
+      
+      .enemy {
+        color: var(--blood-red);
+        font-weight: bold;
       }
+      
+      .inventory-item {
+        color: var(--gold);
+        font-weight: bold;
+      }
+      
+      .player-stats {
+        color: var(--forest-green);
+        font-weight: bold;
+      }
+      
+      .stats-value {
+        color: var(--gold);
+        font-weight: bold;
+      }
+      
+      /* Item actions */
       #item-actions {
-        margin: 10px 0;
+        margin: 10px auto;
         padding: 10px;
-        border-top: 1px dashed #ccc;
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
+        max-width: 800px;
       }
+      
       .pickup-button {
-        background-color: #4caf50;
+        background-color: var(--forest-green);
         color: white;
         margin: 5px;
         padding: 8px 15px;
-        border: none;
-        border-radius: 4px;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 10px;
+        border: 3px solid #000;
+        box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.2),
+                    inset -2px -2px 0 rgba(0, 0, 0, 0.2);
         cursor: pointer;
       }
+      
       .pickup-button:hover {
-        background-color: #45a049;
+        transform: scale(1.05);
       }
+      
       .success-message {
-        color: #4caf50;
+        color: var(--forest-green);
         font-weight: bold;
       }
+      
       .error-message {
-        color: #f44336;
+        color: #ff4c4c;
         font-weight: bold;
       }
 
       /* Panel Styles */
       .info-panel {
-        display: none; /* Hidden by default */
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        margin: 0 auto 20px auto;
+        display: none;
+        background-color: var(--parchment);
+        background-image: none;
+        margin: 0 0 20px 0;
         padding: 15px;
-        width: 90%;
-        max-width: 800px;
         text-align: left;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         animation: panelFade 0.3s ease-in-out;
+        border: 8px solid var(--wood-dark);
+        box-shadow: inset 0 0 0 4px var(--wood-light);
+        max-height: 400px;
+        overflow-y: auto;
       }
 
       @keyframes panelFade {
@@ -108,30 +216,30 @@
       }
 
       #stats-panel {
-        background-color: #f8f3ff; /* Light purple background */
-        border-left: 5px solid #9b59b6;
+        background-color: var(--parchment);
       }
 
       #inventory-panel {
-        background-color: #f3f8ff; /* Light blue background */
-        border-left: 5px solid #4a89dc;
+        background-color: var(--parchment);
       }
 
       .panel-title {
+        font-family: 'Press Start 2P', cursive;
         margin-top: 0;
         margin-bottom: 15px;
         padding-bottom: 10px;
-        border-bottom: 1px solid #eee;
-        font-size: 18px;
+        border-bottom: 2px dashed var(--wood-dark);
+        font-size: 16px;
         text-align: center;
+        color: var(--wood-dark);
       }
 
       .stats-title {
-        color: #9b59b6;
+        color: var(--forest-green);
       }
 
       .inventory-title {
-        color: #4a89dc;
+        color: var(--gold);
       }
 
       .panel-content ul {
@@ -142,75 +250,372 @@
       .panel-content li {
         margin: 8px 0;
         padding: 8px;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px dashed var(--wood-dark);
+        font-size: 18px;
       }
 
       .stat-row {
         display: flex;
         justify-content: space-between;
         padding: 8px 15px;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px dashed var(--wood-dark);
       }
 
       .stat-label {
         font-weight: bold;
-        color: #9b59b6;
+        color: var(--wood-dark);
       }
 
       .stat-value {
         font-weight: bold;
-        color: #3498db;
+        color: var(--gold);
       }
 
       .empty-message {
-        color: #95a5a6;
+        color: var(--stone-dark);
         font-style: italic;
         text-align: center;
         padding: 15px;
       }
+
+      /* Combat Panel */
+      #combat-panel {
+        background-color: var(--parchment);
+        background-image: none;
+        display: none;
+        max-height: none;
+        width: 90%;
+        margin: 20px auto;
+      }
+      
+      .combat-title {
+        color: var(--blood-red);
+      }
+      
+      .combat-log {
+        max-height: 250px;
+        min-height: 250px; /* Added min-height to prevent shrinking */
+        height: 250px; /* Fixed height */
+        overflow-y: auto;
+        padding: 10px;
+        background-color: rgba(0, 0, 0, 0.1);
+        border: 4px solid var(--wood-dark);
+        margin-bottom: 15px;
+        font-family: 'VT323', monospace;
+        font-size: 18px;
+      }
+      
+      .combat-log p {
+        margin: 5px 0;
+      }
+      
+      .health-bar {
+        height: 20px;
+        background-color: #333;
+        margin: 10px 0;
+        overflow: hidden;
+        border: 3px solid #000;
+      }
+      
+      .health-fill {
+        height: 100%;
+        background-color: var(--forest-green);
+        transition: width 0.5s;
+        background-image: repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 5px,
+          rgba(255, 255, 255, 0.1) 5px,
+          rgba(255, 255, 255, 0.1) 10px
+        );
+      }
+      
+      .enemy-health-fill {
+        background-color: var(--blood-red);
+      }
+      
+      .combat-controls {
+        display: flex;
+        justify-content: center;
+        margin-top: 15px;
+      }
+      
+      .attack-button {
+        background-color: var(--blood-red);
+        color: white;
+        padding: 10px 20px;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 14px;
+        border: 4px solid #000;
+        box-shadow: inset 4px 4px 0 rgba(255, 255, 255, 0.2),
+                    inset -4px -4px 0 rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+      }
+      
+      .attack-button:hover {
+        transform: scale(1.05);
+      }
+      
+      .attack-button:disabled {
+        background-color: var(--stone-light);
+        cursor: not-allowed;
+        transform: none;
+      }
+      
+      .enemy-button {
+        background-color: var(--blood-red);
+        color: white;
+        margin: 5px;
+        padding: 8px 15px;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 10px;
+        border: 3px solid #000;
+        box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.2),
+                    inset -2px -2px 0 rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+      }
+      
+      .enemy-button:hover {
+        transform: scale(1.05);
+      }
+      
+      /* Game container */
+      .game-container {
+        max-width: 950px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: rgba(0, 0, 0, 0.7);
+        border: 4px solid var(--wood-dark);
+        box-shadow: 0 0 0 4px #000;
+      }
+
+      /* Game action area */
+      #game-actions {
+        margin: 15px auto;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      /* Add pixel art style borders */
+      .pixel-borders {
+        position: relative;
+      }
+      
+      .pixel-borders:before {
+        content: "";
+        position: absolute;
+        z-index: -1;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border: 4px solid var(--wood-dark);
+        background-color: var(--parchment-dark);
+      }
+      
+      /* Striped background for panels */
+      .panel-content {
+        background-color: var(--parchment);
+        background-image: repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 20px,
+          rgba(0, 0, 0, 0.03) 20px,
+          rgba(0, 0, 0, 0.03) 40px
+        );
+      }
+
+      /* Combat status message */
+      .combat-status {
+        font-weight: bold;
+        text-align: center;
+        margin: 10px 0;
+        padding: 5px;
+        background-color: rgba(0, 0, 0, 0.2);
+        border-radius: 4px;
+      }
+
+      .player-turn {
+        color: var(--forest-green);
+      }
+
+      .enemy-turn {
+        color: var(--blood-red);
+      }
+
+      /* Add Game Over styling */
+      .game-over-banner {
+        background-color: rgba(139, 0, 0, 0.9); /* Blood red background */
+        color: white;
+        font-size: 2em;
+        text-align: center;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 5px;
+        font-family: 'MedievalSharp', cursive;
+        animation: pulse 2s infinite; /* Pulsing animation */
+        text-shadow: 2px 2px 4px #000;
+      }
+
+      @keyframes pulse {
+        0% { opacity: 0.7; }
+        50% { opacity: 1; }
+        100% { opacity: 0.7; }
+      }
+
+      /* Add layout containers for side panels */
+      .game-layout {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .side-panel {
+        width: 22%;
+        margin-top: 20px;
+      }
+
+      .center-content {
+        width: 54%;
+      }
+
+      /* Persistent health bar styles */
+      .persistent-stats {
+        background-color: var(--parchment);
+        padding: 10px;
+        margin: 10px auto;
+        border: 4px solid var(--wood-dark);
+        box-shadow: inset 0 0 0 2px var(--wood-light);
+        text-align: center;
+      }
+
+      .persistent-health {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .persistent-health .label {
+        font-weight: bold;
+        margin-right: 10px;
+        font-family: 'Press Start 2P', cursive;
+        font-size: 12px;
+        color: var(--wood-dark);
+      }
+
+      .persistent-health .value {
+        font-weight: bold;
+        margin-left: 10px;
+        color: var(--forest-green);
+      }
     </style>
   </head>
   <body>
-    <h1>Text Adventure Game</h1>
+    <div class="game-container">
+      <h1>PIXEL DUNGEON ADVENTURE</h1>
 
+      <div class="game-layout">
+        <!-- Left Side Panel -->
+        <div class="side-panel" id="left-panel">
+          <!-- Inventory Panel -->
+          <div id="inventory-panel" class="info-panel">
+            <h3 class="panel-title inventory-title">YOUR INVENTORY</h3>
+            <div id="inventory-content" class="panel-content"></div>
+          </div>
+        </div>
+
+        <!-- Center Content -->
+        <div class="center-content">
     <div id="game-log">
       <p>
-        Welcome to the Text Adventure Game! Click "Enter Next Room" to begin
+              Welcome to the Pixel Dungeon Adventure! Click "Enter Next Room" to begin
         your journey.
       </p>
     </div>
 
-    <!-- Stats Panel (Hidden by default) -->
+          <!-- Persistent Health Bar -->
+          <div class="persistent-stats">
+            <div class="persistent-health">
+              <span class="label">HEALTH:</span>
+              <div class="health-bar" style="flex-grow: 1; margin: 0 10px;">
+                <div id="persistent-health-fill" class="health-fill" style="width: 100%;"></div>
+              </div>
+              <span class="value"><span id="persistent-health">100</span>/<span id="persistent-max-health">100</span></span>
+            </div>
+          </div>
+
+          <div id="item-actions"></div>
+
+          <div id="game-actions">
+            <button id="next-room-btn" onclick="enterRoom()">ENTER NEXT ROOM</button>
+            <button id="inventory-button" onclick="toggleInventory()">
+              INVENTORY
+            </button>
+            <button id="stats-button" onclick="togglePlayerStats()">
+              STATS
+            </button>
+            <button id="reset-button" onclick="resetGame()" style="display: none">
+              RESET GAME
+            </button>
+          </div>
+        </div>
+
+        <!-- Right Side Panel -->
+        <div class="side-panel" id="right-panel">
+          <!-- Stats Panel -->
     <div id="stats-panel" class="info-panel">
-      <h3 class="panel-title stats-title">Player Stats</h3>
+            <h3 class="panel-title stats-title">PLAYER STATS</h3>
       <div id="stats-content" class="panel-content"></div>
     </div>
-
-    <!-- Inventory Panel (Hidden by default) -->
-    <div id="inventory-panel" class="info-panel">
-      <h3 class="panel-title inventory-title">Your Inventory</h3>
-      <div id="inventory-content" class="panel-content"></div>
+        </div>
     </div>
 
-    <div id="item-actions"></div>
-
-    <div id="game-actions">
-      <button id="next-room-btn" onclick="enterRoom()">Enter Next Room</button>
-      <button id="inventory-button" onclick="toggleInventory()">
-        View Inventory
-      </button>
-      <button id="stats-button" onclick="togglePlayerStats()">
-        View Stats
-      </button>
-      <button id="reset-button" onclick="resetGame()" style="display: none">
-        Reset Game
-      </button>
+    <!-- Combat Panel (Hidden by default) -->
+    <div id="combat-panel" class="info-panel">
+        <h3 class="panel-title combat-title">COMBAT</h3>
+      <div id="combat-content" class="panel-content">
+        <div id="enemy-info"></div>
+        <div class="health-bars">
+          <p>Your Health: <span id="player-health">100</span>/<span id="player-max-health">100</span></p>
+          <div class="health-bar">
+            <div id="player-health-fill" class="health-fill" style="width: 100%;"></div>
+          </div>
+          <p><span id="enemy-name">Enemy</span> Health: <span id="enemy-health">100</span>/<span id="enemy-max-health">100</span></p>
+          <div class="health-bar">
+            <div id="enemy-health-fill" class="health-fill enemy-health-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+        <div class="combat-log" id="combat-log">
+          <p>Combat has begun!</p>
+        </div>
+        <div class="combat-controls">
+            <button id="attack-button" class="attack-button" onclick="attackEnemy()">ATTACK</button>
+        </div>
+      </div>
+    </div>
     </div>
 
     <script>
       let player_id = 1;
       let current_room_id = 0;
       let room_items = [];
+      let refreshingRoom = false; // Flag to track if we're refreshing current room
+
+      // Combat state variables
+      let inCombat = false;
+      let currentEnemy = null;
+      let playerHealth;
+      let enemyHealth = 0;
+      let playerMaxHealth;
+      let enemyMaxHealth = 0;
+      let currentTurn = "player";
+      let playerDamage = 10; // Default value
+
+      // Remove hardcoded initialization value - it will be set from the database
+      let baseMaxHealth; // This will be initialized from the player's database health value
 
       function logMessage(message, className = "") {
         if (className) {
@@ -223,24 +628,11 @@
       }
 
       function togglePanel(panelId) {
-        // Hide all panels first
-        $(".info-panel").hide();
-
         // Get the panel element
         const panel = $(`#${panelId}`);
 
         // Toggle the panel
         panel.toggle();
-
-        // If panel is visible, scroll to it
-        if (panel.is(":visible")) {
-          $("html, body").animate(
-            {
-              scrollTop: panel.offset().top - 20,
-            },
-            300
-          );
-        }
       }
 
       function createItemButtons(items, room_id) {
@@ -272,6 +664,9 @@
       }
 
       function pickUpItem(roomId, itemId, itemName, buttonElement) {
+        // Disable the button temporarily to prevent multiple clicks
+        $(buttonElement).prop("disabled", true);
+        
         $.ajax({
           url: "/pick_up_item",
           type: "POST",
@@ -281,7 +676,34 @@
             item_id: itemId,
           }),
           success: function (response) {
+            // Re-enable the button in case of failure
+            $(buttonElement).prop("disabled", false);
+            
+            if (response.success === false) {
+              // Handle error case returned with 200 status
+              logMessage(
+                `Failed to pick up ${itemName}: ${response.error || "Unknown error"}`,
+                "error-message"
+              );
+              return;
+            }
+            
             logMessage(`You picked up the ${itemName}!`, "success-message");
+            
+            // Check if attack was increased (for item ID 1)
+            if (response.attack_increased) {
+              const weaponName = response.item_name || itemName;
+              logMessage(`The ${weaponName} increases your attack power to ${response.new_attack}!`, "success-message");
+              
+              // Update player damage variable for combat
+              playerDamage = response.new_attack;
+              
+              // Update stats panel if it's open
+              if ($("#stats-panel").is(":visible")) {
+                togglePlayerStats();
+                setTimeout(togglePlayerStats, 100);
+              }
+            }
 
             // Remove the button since the item is now picked up
             $(buttonElement).remove();
@@ -289,16 +711,30 @@
             // Remove the item from the room_items array
             room_items = room_items.filter((item) => item.id !== itemId);
 
-            // If all items are picked up, maybe show a message
+            // If all items are picked up, only clear the item action buttons, not enemy buttons
             if (room_items.length === 0) {
-              $("#item-actions").empty();
+              // Remove only the pickup buttons, not enemy buttons
+              $(".pickup-button").remove();
             }
+
+            // Update panels if they're open after successful item pickup
+            updatePanelsIfOpen();
           },
           error: function (xhr) {
+            // Re-enable the button
+            $(buttonElement).prop("disabled", false);
+            
             let errorMsg = "Failed to pick up item";
             try {
-              errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
-            } catch (e) {}
+              const errorResponse = JSON.parse(xhr.responseText);
+              if (errorResponse.error) {
+                errorMsg = errorResponse.error;
+              } else if (errorResponse.details && errorResponse.details.error) {
+                errorMsg = errorResponse.details.error;
+              }
+            } catch (e) {
+              console.error("Error parsing error response:", e);
+            }
 
             logMessage(
               `Failed to pick up ${itemName}: ${errorMsg}`,
@@ -308,21 +744,392 @@
         });
       }
 
+      function createEnemyButtons(enemies, room_id) {
+        // Clear any previous enemy buttons
+        $(".enemy-button").remove();
+        
+        // If no enemies, don't show anything
+        if (!enemies || enemies.length === 0) {
+          return;
+        }
+        
+        // Create buttons for each enemy
+        enemies.forEach((enemy) => {
+          const button = $(`<button class="enemy-button" 
+                           data-enemy-id="${enemy.id}" 
+                           data-room-id="${room_id}" 
+                           data-enemy-name="${enemy.name}">
+                           Fight ${enemy.name}</button>`);
+          
+          button.click(function() {
+            const enemyId = $(this).data("enemy-id");
+            const enemyName = $(this).data("enemy-name");
+            startCombat(enemyId, enemyName);
+          });
+          
+          $("#item-actions").append(button);
+        });
+      }
+
+      function startCombat(enemyId, enemyName) {
+        console.log("Starting combat with enemy ID:", enemyId, "Name:", enemyName);
+        
+        // Safety check - ensure baseMaxHealth is initialized
+        if (baseMaxHealth === undefined) {
+          console.warn("baseMaxHealth not initialized, fetching player stats first");
+          $.ajax({
+            url: "/player_stats",
+            type: "GET",
+            success: function(response) {
+              baseMaxHealth = response.Health || response.health || 100;
+              console.log("Initialized baseMaxHealth to", baseMaxHealth);
+              // Now call startCombat again
+              startCombat(enemyId, enemyName);
+            },
+            error: function() {
+              console.error("Failed to initialize baseMaxHealth, using fallback value of 100");
+              baseMaxHealth = 100;
+              startCombat(enemyId, enemyName);
+            }
+          });
+          return;
+        }
+        
+        // Store panel visibility states
+        const inventoryVisible = $("#inventory-panel").is(":visible");
+        const statsVisible = $("#stats-panel").is(":visible");
+        
+        // Fetch fresh player stats before starting combat to get accurate health and damage
+        $.ajax({
+          url: "/player_stats",
+          type: "GET",
+          success: function(playerStats) {
+            // Store current player health and damage
+            const currentPlayerHealth = playerStats.Health || playerStats.health || 100;
+            playerDamage = playerStats.Damage || playerStats.damage || 10;
+            
+            console.log("Starting combat with player damage:", playerDamage);
+            
+            $.ajax({
+              url: `/combat/start/${enemyId}`,
+              type: "POST",
+              contentType: "application/json",
+              data: JSON.stringify({}),
+              success: function(response) {
+                console.log("Combat start response:", response);
+                
+                // Set combat state
+                inCombat = true;
+                
+                // Store enemy details with all required properties
+                currentEnemy = {
+                  id: enemyId,
+                  name: response.enemy.name || enemyName,
+                  damage: response.enemy.damage || 10,
+                  attack: response.enemy.attack || 1,
+                  room_id: current_room_id
+                };
+                
+                // Set health values - ALWAYS use baseMaxHealth as max
+                playerHealth = response.player.health || currentPlayerHealth;
+                playerMaxHealth = baseMaxHealth; // Always use the base max health
+                enemyHealth = response.enemy.health || 100;
+                enemyMaxHealth = response.enemy.max_health || 100;
+                currentTurn = response.turn || "player";
+                
+                // Update UI with correct max health value
+                $("#player-health").text(playerHealth);
+                $("#player-max-health").text(baseMaxHealth);
+                $("#player-health-fill").css("width", (playerHealth / baseMaxHealth * 100) + "%");
+                
+                // Also update persistent health display
+                $("#persistent-health").text(playerHealth);
+                $("#persistent-max-health").text(baseMaxHealth);
+                $("#persistent-health-fill").css("width", (playerHealth / baseMaxHealth * 100) + "%");
+                
+                $("#enemy-name").text(currentEnemy.name);
+                $("#enemy-health").text(enemyHealth);
+                $("#enemy-max-health").text(enemyMaxHealth);
+                $("#enemy-health-fill").css("width", (enemyHealth / enemyMaxHealth * 100) + "%");
+                
+                // Clear and update combat log
+                $("#combat-log").html(`<p>You have engaged in combat with ${currentEnemy.name}!</p>`);
+                if (response.enemy.description) {
+                  $("#combat-log").append(`<p>${response.enemy.description}</p>`);
+                }
+                
+                // Show combat panel
+                $("#combat-panel").show();
+                
+                // Disable other actions during combat
+                $("#next-room-btn").prop("disabled", true);
+                $(".pickup-button").prop("disabled", true);
+                $(".enemy-button").prop("disabled", true);
+                $("#inventory-button").prop("disabled", true);
+                $("#stats-button").prop("disabled", true);
+                
+                // Enable attack button if it's player's turn
+                $("#attack-button").prop("disabled", currentTurn !== "player");
+                
+                // Log to game log
+                logMessage("------------------------------");
+                logMessage(`You have engaged in combat with ${currentEnemy.name}!`, "enemy");
+                logMessage("The fight has begun. Visit the combat panel to see the action.", "enemy");
+                
+                // If enemy goes first, automatically perform enemy attack
+                if (currentTurn === "enemy") {
+                  setTimeout(attackEnemy, 1000);
+                }
+                
+                // Restore panels at the end of the success function
+                if (inventoryVisible) {
+                  $("#inventory-panel").show();
+                }
+                if (statsVisible) {
+                  $("#stats-panel").show();
+                }
+                
+                // Update panels if they're open
+                updatePanelsIfOpen();
+              },
+              error: function(xhr) {
+                console.error("Combat start error:", xhr.responseText);
+                
+                let errorMsg = "Failed to start combat";
+                try {
+                  errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
+                } catch (e) {
+                  console.error("Error parsing response:", e);
+                }
+                
+                logMessage(`Error: ${errorMsg}`, "error-message");
+              }
+            });
+          },
+          error: function() {
+            // If we can't get player stats, fall back to default values
+            console.log("Failed to fetch player stats, using default values");
+            logMessage("Error: Could not retrieve player stats. Using default values.", "error-message");
+            
+            // Fall back to using base max health
+            playerMaxHealth = baseMaxHealth;
+          }
+        });
+      }
+
+      function attackEnemy() {
+        // Disable attack button during processing
+        $("#attack-button").prop("disabled", true);
+        
+        // Debug check to ensure all values are present
+        if (!currentEnemy) {
+          console.error("No current enemy data!");
+          $("#combat-log").append(`<p class="error-message">Error: No enemy data available</p>`);
+          $("#attack-button").prop("disabled", false);
+          return;
+        }
+        
+        // Use the combat log to report attack
+        $("#combat-log").append(`<p class="combat-status player-turn">You are preparing to attack...</p>`);
+        $("#combat-log").scrollTop($("#combat-log")[0].scrollHeight);
+        
+        // Short delay before sending attack - gives visual feedback of turn sequence
+        setTimeout(function() {
+        // Ensure all values are defined with fallbacks
+        const attackData = {
+          enemy_id: currentEnemy.id,
+          enemy_name: currentEnemy.name,
+          player_health: playerHealth,
+          enemy_health: enemyHealth,
+          player_damage: playerDamage,
+            enemy_damage: currentEnemy.damage || 10,
+            enemy_attack: currentEnemy.attack || 1,
+          turn: currentTurn,
+            room_id: currentEnemy.room_id || current_room_id
+        };
+        
+        console.log("Attack data being sent:", attackData);
+        
+        $.ajax({
+          url: "/combat/attack",
+          type: "POST",
+          contentType: "application/json",
+          data: JSON.stringify(attackData),
+          success: function(response) {
+            console.log("Attack response:", response);
+            
+            // Update health values
+            playerHealth = response.player_health;
+            enemyHealth = response.enemy_health;
+            
+              // Update health UI with the baseMaxHealth
+            $("#player-health").text(playerHealth);
+              $("#player-health-fill").css("width", (playerHealth / baseMaxHealth * 100) + "%");
+              
+              // Also update persistent health bar
+              $("#persistent-health").text(playerHealth);
+              $("#persistent-health-fill").css("width", (playerHealth / baseMaxHealth * 100) + "%");
+            
+            $("#enemy-health").text(enemyHealth);
+            $("#enemy-health-fill").css("width", (enemyHealth / enemyMaxHealth * 100) + "%");
+            
+            // Update combat log with all messages
+            if (response.combat_log && response.combat_log.length) {
+              response.combat_log.forEach(message => {
+                $("#combat-log").append(`<p>${message}</p>`);
+              });
+            }
+              
+              // Auto-scroll the combat log
+              $("#combat-log").scrollTop($("#combat-log")[0].scrollHeight);
+            
+            // Set the current turn
+            currentTurn = response.turn;
+            
+            // Check if combat is over
+            if (response.is_combat_over) {
+              const winner = response.winner;
+              
+              // Handle outcome based on winner
+              if (winner === "player") {
+                // Add victory message to game log
+                logMessage(`You have defeated the ${currentEnemy.name}!`, "success-message");
+                
+                // Player wins - experience, loot, etc. handled by the backend
+                endCombat();
+              } else if (winner === "enemy") {
+                  // Player loses - Game Over!
+                  triggerGameOver(currentEnemy.name);
+              }
+            } else {
+              // Combat continues - enable attack button if it's the player's turn
+                if (currentTurn === "player") {
+                  $("#attack-button").prop("disabled", false);
+                } else if (currentTurn === "enemy") {
+                  // If it's enemy's turn, show preparing message and then attack after delay
+                  $("#combat-log").append(`<p class="combat-status enemy-turn">The ${currentEnemy.name} is preparing to attack...</p>`);
+                $("#combat-log").scrollTop($("#combat-log")[0].scrollHeight);
+                
+                  // Add a delay before enemy attacks to create turn-based feel
+                  setTimeout(attackEnemy, 2000); // 2 second delay before enemy attack
+              }
+            }
+
+              // Update panels if they're open
+              updatePanelsIfOpen();
+          },
+          error: function(xhr) {
+            console.error("Attack error:", xhr.responseText);
+            $("#combat-log").append(`<p class="error-message">Error during attack: ${xhr.responseText}</p>`);
+            $("#attack-button").prop("disabled", false);
+          }
+        });
+        }, 1000); // 1 second delay before sending player attack
+      }
+
+      function endCombat() {
+        // If player is dead, don't proceed with normal combat end
+        if (playerHealth <= 0) return;
+        
+        inCombat = false;
+        currentEnemy = null;
+        $("#combat-panel").hide();
+        refreshRoom();
+      }
+
+      function triggerGameOver(enemyName) {
+        // Log defeat message
+        logMessage(`You were defeated by the ${enemyName}!`, "error-message");
+        logMessage("------------------------------");
+        
+        // Display a prominent Game Over banner
+        $("#game-log").append(`
+          <div class="game-over-banner">
+            GAME OVER
+          </div>
+        `);
+        
+        logMessage(`Your adventure has come to a tragic end at the hands of ${enemyName}.`, "error-message");
+        logMessage("Click RESET GAME to try again.", "error-message");
+        logMessage("------------------------------");
+        
+        // Scroll to see the Game Over message
+        $("#game-log").scrollTop($("#game-log")[0].scrollHeight);
+        
+        // Reset combat state variables
+        inCombat = false;
+        currentEnemy = null;
+        playerHealth = 0; // Set to 0 to indicate dead state
+        
+        // Hide combat panel
+        $("#combat-panel").hide();
+        
+        // Disable all game control buttons except reset
+        $("#next-room-btn").prop("disabled", true);
+        $(".pickup-button").prop("disabled", true).hide();
+        $(".enemy-button").prop("disabled", true).hide();
+        $("#inventory-button").prop("disabled", true);
+        $("#stats-button").prop("disabled", true);
+        
+        // Show and enable reset button
+        $("#reset-button").show().prop("disabled", false);
+      }
+
+      function updateHealthBars() {
+        // Update player health display
+        $("#player-health").text(playerHealth);
+        $("#player-health-fill").css("width", (playerHealth / playerMaxHealth * 100) + "%");
+        
+        // Update enemy health display if in combat
+        if (inCombat && currentEnemy) {
+          $("#enemy-health").text(enemyHealth);
+          $("#enemy-health-fill").css("width", (enemyHealth / enemyMaxHealth * 100) + "%");
+        }
+      }
+
       function enterRoom() {
-        // Hide any open panels when entering a new room
-        $(".info-panel").hide();
+        // If in combat, prevent room change
+        if (inCombat) {
+          logMessage("You cannot enter a new room while in combat!", "error-message");
+          return;
+        }
+        
+        // If player health is 0 or less, they're in Game Over state and cannot move
+        if (playerHealth <= 0) {
+          logMessage("You cannot continue - GAME OVER. Click RESET GAME to try again.", "error-message");
+          return;
+        }
+        
+        // Store panel visibility states instead of hiding all panels
+        const inventoryVisible = $("#inventory-panel").is(":visible");
+        const statsVisible = $("#stats-panel").is(":visible");
+
+        // Prepare payload - only include target_room_id if we're refreshing the current room
+        const payload = {};
+        if (refreshingRoom) {
+          payload.target_room_id = current_room_id;
+          refreshingRoom = false; // Reset the flag
+        }
 
         $.ajax({
           url: "/enter_room",
           type: "POST",
           contentType: "application/json",
-          data: JSON.stringify({}),
+          data: JSON.stringify(payload),
           success: function (response) {
             if (response.end_of_game) {
               // End of game reached
               logMessage("------------------------------");
-              logMessage(response.message);
-              logMessage("You've reached the end of the game!");
+              logMessage(response.message, "success-message");
+              
+              // Display description if available
+              if (response.description) {
+                logMessage(response.description);
+              }
+              
+              // Display victory banner
+              logMessage("✧･ﾟ: *✧･ﾟ:* GAME COMPLETE *:･ﾟ✧*:･ﾟ✧", "success-message");
+              logMessage("------------------------------");
 
               // Show reset button, hide next room button
               $("#reset-button").show();
@@ -353,7 +1160,7 @@
                 createItemButtons(response.items, current_room_id);
               } else {
                 // Clear item buttons if no items in the room
-                $("#item-actions").empty();
+                $(".pickup-button").remove();
               }
 
               // Display enemies in the room
@@ -362,6 +1169,12 @@
                 response.enemies.forEach((enemy) => {
                   logMessage(`- ${enemy.name}: ${enemy.description}`, "enemy");
                 });
+
+                // Create buttons for fighting enemies
+                createEnemyButtons(response.enemies, current_room_id);
+              } else {
+                // Only remove enemy buttons when there are no enemies
+                $(".enemy-button").remove();
               }
 
               if (
@@ -371,6 +1184,17 @@
                 logMessage("This room is empty.");
               }
             }
+            
+            // Restore panel visibility based on previous state
+            if (inventoryVisible) {
+              $("#inventory-panel").show();
+            }
+            if (statsVisible) {
+              $("#stats-panel").show();
+            }
+
+            // Update panels if they're open (this is in addition to restoring visibility)
+            updatePanelsIfOpen();
           },
           error: function (xhr) {
             // Get the response data
@@ -384,8 +1208,17 @@
             // Log appropriate message based on status and response
             logMessage("------------------------------");
 
+            // Special handling for enemies present (403 status with enemies_present flag)
+            if (xhr.status === 403 && response.enemies_present) {
+              logMessage(
+                response.error || "You cannot leave until you defeat all enemies!",
+                "error-message"
+              );
+              logMessage("------------------------------");
+              return; // Exit early
+            }
             // Special handling for locked doors (403 status with door_locked flag)
-            if (xhr.status === 403 && response.door_locked) {
+            else if (xhr.status === 403 && response.door_locked) {
               logMessage(
                 response.error || "This door is locked!",
                 "error-message"
@@ -397,11 +1230,21 @@
               logMessage("------------------------------");
               return; // Exit early
             }
-            // Special handling for out of bounds rooms (end of game)
+            // Special handling for end of game
             else if (response.end_of_game) {
               logMessage(
-                response.message || "You've reached the end of the game!"
+                response.message || "Congratulations! You've completed the game!",
+                "success-message"
               );
+              
+              // Display description if available
+              if (response.description) {
+                logMessage(response.description);
+              }
+              
+              // Display victory banner
+              logMessage("✧･ﾟ: *✧･ﾟ:* GAME COMPLETE *:･ﾟ✧*:･ﾟ✧", "success-message");
+              logMessage("------------------------------");
 
               // Show reset button, hide next room button
               $("#reset-button").show();
@@ -416,66 +1259,14 @@
               );
               logMessage("------------------------------");
             }
-          },
-        });
-      }
-
-      function resetGame() {
-        // Hide any open panels when resetting the game
-        $(".info-panel").hide();
-
-        $.ajax({
-          url: "/enter_room",
-          type: "POST",
-          contentType: "application/json",
-          data: JSON.stringify({ target_room_id: 0 }),
-          success: function (response) {
-            logMessage("------------------------------");
-            logMessage("Game reset! Starting over from the beginning.");
-            logMessage(
-              `Room ${response.player_current_room}: ${response.room_name}`
-            );
-            logMessage(response.description);
-
-            // Update current room ID
-            current_room_id = response.player_current_room;
-
-            // Store room items for later reference
-            room_items = response.items || [];
-
-            // Display items and enemies in the starting room
-            if (response.items && response.items.length > 0) {
-              logMessage("Items in this room:", "item");
-              response.items.forEach((item) => {
-                logMessage(`- ${item.name}: ${item.description}`, "item");
-              });
-
-              // Create pickup buttons for the items
-              createItemButtons(response.items, current_room_id);
-            } else {
-              // Clear item buttons if no items in the room
-              $("#item-actions").empty();
+            
+            // Restore panel visibility states here too, even after errors
+            if (inventoryVisible) {
+              $("#inventory-panel").show();
             }
-
-            if (response.enemies && response.enemies.length > 0) {
-              logMessage("Enemies in this room:", "enemy");
-              response.enemies.forEach((enemy) => {
-                logMessage(`- ${enemy.name}: ${enemy.description}`, "enemy");
-              });
+            if (statsVisible) {
+              $("#stats-panel").show();
             }
-
-            // Hide reset button, show next room button
-            $("#reset-button").hide();
-            $("#next-room-btn").show();
-          },
-          error: function (xhr) {
-            let errorMsg = "Failed to reset the game";
-            try {
-              errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
-            } catch (e) {}
-
-            logMessage("------------------------------");
-            logMessage(errorMsg);
           },
         });
       }
@@ -592,6 +1383,429 @@
           },
         });
       }
+
+      function resetGame() {
+        console.log("Reset game function called");
+        
+        // Show loading message in game log
+        logMessage("------------------------------");
+        logMessage("Resetting game...", "item");
+        
+        // Save original button text and disable to prevent multiple clicks
+        const resetBtn = $("#reset-button");
+        const originalText = resetBtn.text();
+        resetBtn.prop("disabled", true).text("RESETTING...");
+        
+        $.ajax({
+          url: "/reset_game",
+          type: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({}),
+          success: function (response) {
+            console.log("Reset game response:", response);
+            
+            if (response.success) {
+              // Clear the game log
+              $("#game-log").html("");
+              
+              // Game reset successful - show opening message
+              logMessage("Game has been reset to the beginning. Good luck on your new adventure!", "success-message");
+              logMessage("------------------------------");
+              
+              // Fetch fresh player stats to ensure we have the correct max health
+              $.ajax({
+                url: "/player_stats",
+                type: "GET",
+                success: function(playerStats) {
+                  // Update baseMaxHealth and playerHealth from database
+                  baseMaxHealth = playerStats.Health || playerStats.health || 100;
+                  playerHealth = baseMaxHealth; // Reset current health to max health
+                  playerMaxHealth = baseMaxHealth;
+                  playerDamage = playerStats.Damage || playerStats.damage || 10;
+                  
+                  console.log("After reset: Max health set to:", baseMaxHealth);
+                  console.log("After reset: Current health set to:", playerHealth);
+                  
+                  // Update health displays
+                  $("#player-health").text(playerHealth);
+                  $("#player-max-health").text(baseMaxHealth);
+                  $("#player-health-fill").css("width", "100%");
+                  
+                  // Update persistent health display
+                  $("#persistent-health").text(playerHealth);
+                  $("#persistent-max-health").text(baseMaxHealth);
+                  $("#persistent-health-fill").css("width", "100%");
+                },
+                error: function() {
+                  // If unable to fetch stats, use baseMaxHealth
+                  console.warn("Unable to fetch player stats after reset, using baseMaxHealth");
+                  playerHealth = baseMaxHealth;
+                  playerMaxHealth = baseMaxHealth;
+                }
+              });
+              
+              // Show first room info
+              if (response.room_name) {
+                logMessage(`Room ${response.player_current_room}: ${response.room_name}`);
+                logMessage(response.description);
+                
+                // Update current room ID
+                current_room_id = response.player_current_room;
+                
+                // Display items and enemies
+                if (response.items && response.items.length > 0) {
+                  logMessage("Items in this room:", "item");
+                  response.items.forEach((item) => {
+                    logMessage(`- ${item.name}: ${item.description}`, "item");
+                  });
+                  
+                  // Create pickup buttons
+                  createItemButtons(response.items, current_room_id);
+                }
+                
+                if (response.enemies && response.enemies.length > 0) {
+                  logMessage("Enemies in this room:", "enemy");
+                  response.enemies.forEach((enemy) => {
+                    logMessage(`- ${enemy.name}: ${enemy.description}`, "enemy");
+                  });
+                  
+                  // Create enemy buttons
+                  createEnemyButtons(response.enemies, current_room_id);
+                }
+                
+                if ((!response.items || response.items.length === 0) &&
+                    (!response.enemies || response.enemies.length === 0)) {
+                  logMessage("This room is empty.");
+                }
+              } else {
+                logMessage("You find yourself at the beginning of the dungeon. What dangers await?");
+              }
+              
+              // Reset combat state
+              enemyHealth = 0;
+              inCombat = false;
+              currentEnemy = null;
+              
+              // Reset button state and visibility
+              resetBtn.prop("disabled", false).text(originalText);
+              resetBtn.hide(); // Hide the reset button after successful reset
+              
+              // Show and enable navigation buttons
+              $("#next-room-btn").show().prop("disabled", false);
+              $("#inventory-button").prop("disabled", false);
+              $("#stats-button").prop("disabled", false);
+            } else {
+              // Game reset failed
+              logMessage(`Failed to reset game: ${response.message || "Unknown error"}`, "error-message");
+              logMessage("Try refreshing the page or try again later.", "error-message");
+              
+              // Re-enable reset button with original text in case of failure
+              resetBtn.prop("disabled", false).text(originalText);
+            }
+
+            // Update panels if they're open
+            updatePanelsIfOpen();
+          },
+          error: function (xhr) {
+            console.error("Reset game error:", xhr.responseText);
+            
+            let errorMsg = "Failed to reset the game";
+            try {
+              const errorResponse = JSON.parse(xhr.responseText);
+              errorMsg = errorResponse.message || errorResponse.error || errorMsg;
+            } catch (e) {
+              console.error("Error parsing reset error response:", e);
+            }
+            
+            logMessage(`Error: ${errorMsg}`, "error-message");
+            logMessage("Try refreshing the page or try again later.", "error-message");
+            
+            // Re-enable reset button with original text
+            resetBtn.prop("disabled", false).text(originalText);
+          }
+        });
+      }
+
+      function refreshRoom() {
+        console.log(`Refreshing room ${current_room_id} after combat`);
+        
+        // Store panel visibility states
+        const inventoryVisible = $("#inventory-panel").is(":visible");
+        const statsVisible = $("#stats-panel").is(":visible");
+        
+        // Remove all enemy buttons immediately to prevent clicking on defeated enemies
+        $(".enemy-button").remove();
+        
+        // Make sure combat panel is hidden
+        $("#combat-panel").hide();
+        
+        // Request fresh room data with the current room specifically
+        $.ajax({
+          url: "/enter_room",
+          type: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({ target_room_id: current_room_id }),
+          success: function(response) {
+            console.log("Room refreshed successfully:", response);
+            
+            // Update current room information
+            if (response.room_name) {
+              // Only update room display - don't log new entry messages
+              // Create pickup buttons for items if present
+              if (response.items && response.items.length > 0) {
+                createItemButtons(response.items, current_room_id);
+              }
+              
+              // Create enemy buttons if any remain
+              if (response.enemies && response.enemies.length > 0) {
+                createEnemyButtons(response.enemies, current_room_id);
+              }
+            }
+            
+            // Re-enable navigation
+            $("#next-room-btn").prop("disabled", false);
+            $("#inventory-button").prop("disabled", false);
+            $("#stats-button").prop("disabled", false);
+            
+            // Restore panel visibility states
+            if (inventoryVisible) {
+              $("#inventory-panel").show();
+            }
+            if (statsVisible) {
+              $("#stats-panel").show();
+            }
+
+            // Update panels if they're open (this is in addition to restoring visibility)
+            updatePanelsIfOpen();
+          },
+          error: function(xhr) {
+            console.error("Error refreshing room:", xhr.responseText);
+            
+            // If we get a 403 error about door being locked, show that message
+            if (xhr.status === 403) {
+              try {
+                const errorData = JSON.parse(xhr.responseText);
+                if (errorData.door_locked) {
+                  logMessage(errorData.error, "error-message");
+                }
+              } catch (e) {
+                console.error("Error parsing error response:", e);
+              }
+            }
+            
+            // Re-enable navigation buttons even on error
+            $("#next-room-btn").prop("disabled", false);
+            $("#inventory-button").prop("disabled", false);
+            $("#stats-button").prop("disabled", false);
+            
+            // Restore panel visibility states here too
+            if (inventoryVisible) {
+              $("#inventory-panel").show();
+            }
+            if (statsVisible) {
+              $("#stats-panel").show();
+            }
+          }
+        });
+      }
+
+      function updatePlayerHealth(health) {
+        console.log("Updating player health to:", health);
+        
+        // Fetch updated player stats to display current health
+        $.ajax({
+          url: "/player_stats",
+          type: "GET",
+          success: function(response) {
+            console.log("Updated player stats:", response);
+            
+            // Update player health in UI directly with the server value
+            const currentHealth = response.Health || response.health || health;
+            
+            // Use baseMaxHealth instead of server-returned max health
+            const maxHealth = baseMaxHealth;
+            
+            // Update damage value for future combats
+            playerDamage = response.Damage || response.damage || 10;
+            
+            // Update display for combat panel
+            $("#player-health").text(currentHealth);
+            $("#player-max-health").text(maxHealth);
+            $("#player-health-fill").css("width", (currentHealth / maxHealth * 100) + "%");
+            
+            // Also update persistent health display
+            $("#persistent-health").text(currentHealth);
+            $("#persistent-max-health").text(maxHealth);
+            $("#persistent-health-fill").css("width", (currentHealth / maxHealth * 100) + "%");
+            
+            // Store values globally
+            playerHealth = currentHealth;
+            playerMaxHealth = maxHealth;
+            
+            // Update panels if they're open
+            updatePanelsIfOpen();
+          },
+          error: function(xhr) {
+            console.error("Failed to update player stats:", xhr.responseText);
+            // Fallback to using the health value we received
+            $("#player-health").text(health);
+            $("#persistent-health").text(health);
+            // Still use baseMaxHealth for max health
+            $("#player-max-health").text(baseMaxHealth);
+            $("#persistent-max-health").text(baseMaxHealth);
+          }
+        });
+      }
+
+      // Add a function to update opened panels
+      function updatePanelsIfOpen() {
+        // Check if inventory panel is open and update it
+        if ($("#inventory-panel").is(":visible")) {
+          $.ajax({
+            url: "/view_inventory",
+            type: "GET",
+            success: function (response) {
+              const items = response.items || [];
+              const inventoryContent = document.getElementById("inventory-content");
+
+              // Clear previous content
+              inventoryContent.innerHTML = "";
+
+              if (items.length === 0) {
+                // Display empty inventory message
+                inventoryContent.innerHTML =
+                  "<div class='empty-message'>Your inventory is empty.</div>";
+              } else {
+                // Create list of items
+                const itemList = document.createElement("ul");
+
+                items.forEach((item) => {
+                  const listItem = document.createElement("li");
+                  listItem.innerHTML = `<strong>${item.name}</strong>: ${item.description}`;
+                  itemList.appendChild(listItem);
+                });
+
+                inventoryContent.appendChild(itemList);
+              }
+            },
+            error: function (xhr) {
+              console.error("Failed to refresh inventory panel:", xhr.responseText);
+            }
+          });
+        }
+
+        // Check if stats panel is open and update it
+        if ($("#stats-panel").is(":visible")) {
+          $.ajax({
+            url: "/player_stats",
+            type: "GET",
+            success: function (response) {
+              const statsContent = document.getElementById("stats-content");
+
+              // Clear previous content
+              statsContent.innerHTML = "";
+
+              // Create stats display with rows
+              const statsContainer = document.createElement("div");
+
+              // Create a row for each stat
+              const stats = [
+                { label: "Name", value: response.name || "Unknown" },
+                { label: "Class", value: response.character_class || "Unknown" },
+                { label: "Health", value: response.health || 0 },
+                { label: "Damage", value: response.damage || 0 },
+                { label: "Current Room", value: response.room_id || 0 },
+              ];
+
+              stats.forEach((stat) => {
+                const row = document.createElement("div");
+                row.className = "stat-row";
+                row.innerHTML = `
+                  <div class="stat-label">${stat.label}:</div>
+                  <div class="stat-value">${stat.value}</div>
+                `;
+                statsContainer.appendChild(row);
+              });
+
+              statsContent.appendChild(statsContainer);
+            },
+            error: function (xhr) {
+              console.error("Failed to refresh stats panel:", xhr.responseText);
+            }
+          });
+        }
+      }
+
+      // Update the document ready function to initialize baseMaxHealth
+      $(document).ready(function() {
+        // Initial health update and get base max health
+        $.ajax({
+          url: "/player_stats",
+          type: "GET",
+          success: function(response) {
+            console.log("Received player stats:", response);
+            
+            // Set the base max health from the database - this is the starting health value
+            baseMaxHealth = response.Health || response.health;
+            if (!baseMaxHealth && baseMaxHealth !== 0) {
+              console.warn("No health value found in player stats, using fallback value of 100");
+              baseMaxHealth = 100; // Only use 100 as absolute fallback
+            }
+            console.log("Base max health set to:", baseMaxHealth);
+            
+            // Also initialize current health
+            playerHealth = response.Health || response.health || baseMaxHealth;
+            playerMaxHealth = baseMaxHealth;
+            
+            // Update damage value
+            playerDamage = response.Damage || response.damage || 10;
+            
+            // Initialize health displays with database values
+            $("#player-max-health").text(baseMaxHealth);
+            $("#persistent-max-health").text(baseMaxHealth);
+            $("#player-health").text(playerHealth);
+            $("#persistent-health").text(playerHealth);
+            
+            // Set the health bar widths
+            $("#player-health-fill").css("width", (playerHealth / baseMaxHealth * 100) + "%");
+            $("#persistent-health-fill").css("width", (playerHealth / baseMaxHealth * 100) + "%");
+            
+            // Log initial values for debugging
+            console.log("Player health initialized to:", playerHealth);
+            console.log("Player max health initialized to:", playerMaxHealth);
+            
+            // Also update the panels if they're open
+            updatePanelsIfOpen();
+          },
+          error: function(xhr) {
+            console.error("Failed to initialize player stats:", xhr.responseText);
+            
+            // If we can't get player stats, use hardcoded values as ultimate fallback
+            baseMaxHealth = 100;
+            playerHealth = 100;
+            playerMaxHealth = 100;
+            playerDamage = 10;
+            
+            // Initialize displays with fallback values
+            $("#player-max-health").text(baseMaxHealth);
+            $("#persistent-max-health").text(baseMaxHealth);
+            $("#player-health").text(playerHealth);
+            $("#persistent-health").text(playerHealth);
+            $("#player-health-fill").css("width", "100%");
+            $("#persistent-health-fill").css("width", "100%");
+            
+            // Log warning
+            console.warn("Using fallback values for player stats");
+          }
+        });
+        
+        // Ensure the reset button always works by using event delegation
+        // This ensures the click handler works even if the button is removed and re-added
+        $(document).on("click", "#reset-button", function(e) {
+          e.preventDefault();
+          resetGame();
+        });
+      });
     </script>
   </body>
 </html>

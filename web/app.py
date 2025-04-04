@@ -22,6 +22,8 @@ ITEM_SERVICE_URL = os.getenv(
     "ITEM_SERVICE_URL", "http://item_service:5020")
 ROOM_SERVICE_URL = os.getenv(
     "ROOM_SERVICE_URL", "http://room_service:5030")
+COMBAT_SERVICE_URL = os.getenv(
+    "COMBAT_SERVICE_URL", "http://fight_enemy_service:5009")
 
 
 @app.route("/")
@@ -48,147 +50,119 @@ def get_player_room():
 
 @app.route("/enter_room", methods=["POST"])
 def enter_room():
-    """Handles room navigation. Auto-increments room ID from player's current room."""
-    player_id = 1  # Hardcoded player ID
-    data = request.get_json()
-    target_room_id = data.get('target_room_id', None)
-
-    logger.debug(
-        f"POST /enter_room - Starting to process for player ID: {player_id}")
-
-    # If target_room_id is provided, use it (for reset functionality)
+    """Proxy to the composite service."""
+    data = request.get_json() or {}
+    
+    # Set default player ID
+    if "player_id" not in data:
+        data["player_id"] = 1
+    
+    # Handle target_room_id if provided (for room refresh after combat)
+    target_room_id = data.get("target_room_id")
+    
     if target_room_id is not None:
-        next_room_id = target_room_id
-        logger.debug(f"Using provided target room ID: {next_room_id}")
+        logger.debug(f"Target room ID provided: {target_room_id}. Refreshing current room.")
+        # Direct call to specific room endpoint
+        room_url = f"{ENTERING_ROOM_SERVICE_URL}/room/{target_room_id}"
     else:
-        # Otherwise, get player's current room and increment it
-        player_response = requests.get(
-            f"{PLAYER_SERVICE_URL}/player/{player_id}")
-        if player_response.status_code != 200:
-            logger.error(f"Failed to get player data: {player_response.text}")
-            return jsonify({"error": "Could not retrieve player data"}), player_response.status_code
-
-        player_data = player_response.json()
-        logger.debug(f"Player data received: {player_data}")
-
-        # Check if RoomID exists in player_data, if not try lowercase version
-        if "RoomID" in player_data:
-            current_room_id = player_data.get("RoomID", 0)
-        elif "room_id" in player_data:
-            current_room_id = player_data.get("room_id", 0)
-        else:
-            logger.warning("RoomID not found in player data, defaulting to 0")
-            current_room_id = 0
-
-        # Increment room ID by 1 for the next room
-        next_room_id = current_room_id + 1
-        logger.debug(
-            f"Current room ID: {current_room_id}, Next room ID: {next_room_id}")
-
-    # Call entering room service with the room ID
-    room_data = {"player_id": player_id}
-    room_url = f"{ENTERING_ROOM_SERVICE_URL}/room/{next_room_id}"
-    logger.debug(
-        f"Calling entering room service: {room_url} with data: {room_data}")
-
+        # Use the next room endpoint which increments the room
+        logger.debug("No target room ID - using next_room endpoint.")
+        room_url = f"{ENTERING_ROOM_SERVICE_URL}/next_room"
+    
     try:
-        room_response = requests.post(room_url, json=room_data)
-        logger.debug(
-            f"Room service response: {room_response.status_code} - {room_response.text}")
-
-        # Check if we got a locked door response (status code 403)
-        if room_response.status_code == 403:
+        logger.debug(f"Forwarding request to {room_url}")
+        response = requests.post(room_url, json=data)
+        
+        # Check for room-specific errors first
+        if response.status_code == 403:
+            # Locked door or enemies present - just pass through
+            return jsonify(response.json()), response.status_code
+            
+        # Check if the response status code indicates room not found (404)
+        # which might mean we've reached the end of the game
+        if response.status_code == 404 and not target_room_id:
             try:
-                response_data = room_response.json()
-                # This is a locked door response
-                logger.debug(f"Room {next_room_id} is locked: {response_data}")
-                return jsonify({
-                    "error": response_data.get("error", "This door is locked! You need a Lockpick to proceed."),
-                    "door_locked": True
-                }), 403
+                # Parse the response to check if this is truly the end of the game
+                error_data = response.json()
+                
+                # Check if this is a room that doesn't exist response (end of game)
+                if "room not found" in error_data.get("error", "").lower():
+                    # Get the current player room to check if it's beyond what we have
+                    player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{data['player_id']}")
+                    if player_response.status_code == 200:
+                        player_data = player_response.json()
+                        current_room = player_data.get("RoomID", player_data.get("room_id", 0))
+                        
+                        # If player is already beyond room 3, it's definitely end of game
+                        if current_room >= 3:
+                            logger.info(f"End of game detected - player in room {current_room} trying to go beyond")
+                            return create_end_of_game_response(data['player_id'])
+                    
+                    # If we can't determine the room, just pass through the 404
+                    return jsonify(error_data), 404
+                
+                # For other 404s, pass through
+                return jsonify(error_data), 404
             except Exception as e:
-                logger.error(f"Error parsing locked door response: {str(e)}")
-                # If we can't parse the JSON, still return a locked door message
-                return jsonify({
-                    "error": "This door is locked! You need a Lockpick to proceed.",
-                    "door_locked": True
-                }), 403
-
-        # For room not found (404) or other client errors (4xx), check for end of game
-        elif room_response.status_code == 404 or (400 <= room_response.status_code < 500):
-            logger.warning(
-                f"Failed to enter room {next_room_id}: {room_response.text}")
-            if next_room_id > 3:  # If trying to go beyond the known number of rooms
-                return jsonify({
-                    "end_of_game": True,
-                    "message": "You've reached the end of the game!"
-                })
-            else:
-                # For other client errors, try to parse the response
-                try:
-                    error_data = room_response.json()
-                    return jsonify({"error": error_data.get("error", "Cannot enter this room.")}), room_response.status_code
-                except:
-                    return jsonify({"error": "Cannot enter this room."}), room_response.status_code
-
-        # For server errors (5xx), return a generic error
-        elif room_response.status_code >= 500:
-            return jsonify({"error": "Server error. Please try again later."}), room_response.status_code
-
-        # If we get a 200 OK, process the room data normally
-        room_data = room_response.json()
-        return jsonify({
-            "end_of_game": False,
-            **room_data
-        })
-
+                logger.error(f"Error parsing 404 response: {str(e)}")
+                # If we can't parse it, assume it's not end of game
+                return jsonify({"error": "Room not found"}), 404
+        
+        # For successful responses, just pass through
+        return jsonify(response.json()), response.status_code
+        
     except requests.RequestException as e:
-        logger.error(
-            f"Request error when calling entering room service: {str(e)}")
-        return jsonify({"error": "Failed to connect to room service."}), 500
+        logger.error(f"Error connecting to entering_room service: {str(e)}")
+        return jsonify({"error": "Failed to connect to room service"}), 500
+
+
+def create_end_of_game_response(player_id):
+    """Creates a custom response for end of game."""
+    # Get player data for personalization
+    try:
+        player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+        player_data = player_response.json() if player_response.status_code == 200 else {}
+        
+        player_name = player_data.get("Name", player_data.get("name", "Adventurer"))
+        
+        return jsonify({
+            "end_of_game": True,
+            "message": f"Congratulations, {player_name}! You have completed the dungeon!",
+            "description": "You stand before the exit of the dungeon, treasures in hand and tales to tell. The light of the outside world beckons you. Your adventure has come to a successful end."
+        }), 200
+    except Exception as e:
+        logger.error(f"Error creating end game response: {str(e)}")
+        return jsonify({
+            "end_of_game": True,
+            "message": "Congratulations! You have completed the dungeon!",
+            "description": "Your adventure has come to a successful end."
+        }), 200
 
 
 @app.route("/pick_up_item", methods=["POST"])
 def pick_up_item():
-    """Handles item pickup using the pick_up_item service."""
-    player_id = 1  # Hardcoded player ID
+    """Proxy to the pick_up_item composite service."""
     data = request.get_json()
     room_id = data.get('room_id')
     item_id = data.get('item_id')
-
-    logger.debug(f"Attempting to pick up item {item_id} from room {room_id}")
-
+    
+    logger.debug(f"POST /pick_up_item - Delegating to pick_up_item service")
+    
     if not room_id or not item_id:
-        logger.error("Missing room_id or item_id in request")
         return jsonify({"error": "Room ID and Item ID are required"}), 400
-
-    # Call the pick_up_item service
-    pickup_url = f"{PICK_UP_ITEM_SERVICE_URL}/room/{room_id}/item/{item_id}/pickup"
-    logger.debug(f"Calling pick up item service: {pickup_url}")
-
-    response = requests.post(pickup_url)
-    logger.debug(
-        f"Pick up item response: {response.status_code} - {response.text}")
-
-    if response.status_code != 200:
-        return jsonify({
-            "success": False,
-            "error": "Failed to pick up item",
-            "details": response.json() if response.text else None
-        }), response.status_code
-
-    # Return the response from the pick up item service
-    return jsonify({
-        "success": True,
-        **response.json()
-    })
+    
+    # Simply pass the request to the composite service
+    try:
+        pickup_url = f"{PICK_UP_ITEM_SERVICE_URL}/room/{room_id}/item/{item_id}/pickup"
+        response = requests.post(pickup_url)
+        
+        # Pass through the response
+        return jsonify(response.json()), response.status_code
+    except requests.RequestException as e:
+        logger.error(f"Error connecting to pick_up_item service: {str(e)}")
+        return jsonify({"error": f"Failed to connect to pick up item service: {str(e)}"}), 500
 
 
-@app.route("/reset_game", methods=["POST"])
-def reset_game():
-    """Resets the game by sending the player back to room 0."""
-    # Call enter_room with target_room_id = 0
-    return enter_room()
 
 
 @app.route("/view_inventory", methods=["GET"])
@@ -320,6 +294,112 @@ def player_stats():
     except requests.RequestException as e:
         logger.error(f"Request error when calling player service: {str(e)}")
         return jsonify({"error": "Failed to connect to player service"}), 500
+
+
+@app.route("/combat/start/<int:enemy_id>", methods=["POST"])
+def start_combat(enemy_id):
+    """Starts combat with an enemy"""
+    player_id = 1  # Hardcoded player ID
+    
+    # Call the fight_enemy service
+    combat_url = f"{COMBAT_SERVICE_URL}/combat/start/{enemy_id}"
+    combat_data = {"player_id": player_id}
+    
+    try:
+        response = requests.post(combat_url, json=combat_data)
+        
+        if response.status_code != 200:
+            return jsonify({"error": "Failed to start combat"}), response.status_code
+        
+        # Just pass through the response from the combat service
+        return jsonify(response.json())
+    except requests.RequestException as e:
+        logger.error(f"Request error when calling combat service: {str(e)}")
+        return jsonify({"error": "Failed to connect to combat service"}), 500
+
+
+@app.route("/combat/attack", methods=["POST"])
+def combat_attack():
+    """Proxy to the fight_enemy composite service."""
+    data = request.get_json()
+    
+    logger.debug(f"POST /combat/attack - Delegating to fight_enemy service")
+    
+    # Add player_id if not present
+    if "player_id" not in data:
+        data["player_id"] = 1
+    
+    # Simply pass the request to the composite service
+    try:
+        attack_url = f"{COMBAT_SERVICE_URL}/combat/attack"
+        response = requests.post(attack_url, json=data)
+        
+        # Pass through the response
+        return jsonify(response.json()), response.status_code
+    except requests.RequestException as e:
+        logger.error(f"Error connecting to combat service: {str(e)}")
+        return jsonify({"error": f"Failed to connect to combat service: {str(e)}"}), 500
+
+
+@app.route("/reset_game", methods=["POST"])
+def reset_game():
+    """Reset the player's progress by setting them back to room 0."""
+    player_id = 1  # Hardcoded player ID
+    
+    logger.debug(f"POST /reset_game - Calling full game reset for player {player_id}")
+    
+    try:
+        # Call the manage_game service for a full reset
+        response = requests.post(
+            f"{os.getenv('MANAGE_GAME_SERVICE_URL', 'http://manage_game_service:5014')}/game/full-reset/{player_id}",
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"Game successfully reset for player {player_id}")
+            
+            # Call enter_room to properly initialize the starting room for display
+            # We directly call the enter_room endpoint with target_room_id=0
+            enter_room_response = requests.post(
+                f"{ENTERING_ROOM_SERVICE_URL}/room/0",
+                json={"player_id": player_id}
+            )
+            
+            if enter_room_response.status_code == 200:
+                room_data = enter_room_response.json()
+                return jsonify({
+                    "success": True,
+                    "message": "Game has been reset successfully.",
+                    "end_of_game": False,
+                    **room_data
+                })
+            else:
+                logger.error(f"Failed to enter starting room after reset: {enter_room_response.text}")
+                return jsonify({
+                    "success": True,
+                    "message": "Game has been reset, but failed to load starting room. Please refresh.",
+                    "error_details": enter_room_response.text
+                })
+        else:
+            logger.error(f"Failed to reset game: {response.text}")
+            try:
+                error_details = response.json()
+                return jsonify({
+                    "success": False,
+                    "message": "Failed to reset game.",
+                    "error_details": error_details
+                }), 500
+            except:
+                return jsonify({
+                    "success": False,
+                    "message": "Failed to reset game. Unknown error from reset service."
+                }), 500
+    except requests.RequestException as e:
+        logger.error(f"Error connecting to manage_game service: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": f"Failed to connect to game management service: {str(e)}"
+        }), 500
 
 
 if __name__ == "__main__":

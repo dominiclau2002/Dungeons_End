@@ -543,7 +543,7 @@
               <div class="health-bar" style="flex-grow: 1; margin: 0 10px;">
                 <div id="persistent-health-fill" class="health-fill" style="width: 100%;"></div>
               </div>
-              <span class="value"><span id="persistent-health">100</span>/<span id="persistent-max-health">100</span></span>
+              <span class="value"><span id="persistent-health">0</span>/<span id="persistent-max-health">0</span></span>
             </div>
           </div>
 
@@ -579,7 +579,7 @@
       <div id="combat-content" class="panel-content">
         <div id="enemy-info"></div>
         <div class="health-bars">
-          <p>Your Health: <span id="player-health">100</span>/<span id="player-max-health">100</span></p>
+          <p>Your Health: <span id="player-health">0</span>/<span id="player-max-health">0</span></p>
           <div class="health-bar">
             <div id="player-health-fill" class="health-fill" style="width: 100%;"></div>
           </div>
@@ -607,15 +607,89 @@
       // Combat state variables
       let inCombat = false;
       let currentEnemy = null;
-      let playerHealth;
+      let playerHealth = 0;  // Will be initialized from database
       let enemyHealth = 0;
-      let playerMaxHealth;
+      let playerMaxHealth = 0;  // Will be initialized from database
       let enemyMaxHealth = 0;
       let currentTurn = "player";
-      let playerDamage = 10; // Default value
+      let playerDamage = 10; // Default value, will be updated from database
 
-      // Remove hardcoded initialization value - it will be set from the database
-      let baseMaxHealth; // This will be initialized from the player's database health value
+      // This will be initialized from the player's database health value
+      let baseMaxHealth = 0; 
+
+      // Initialize the game by loading player stats first, before doing anything else
+      $(document).ready(function() {
+        // Show a loading indicator in the game log
+        $("#game-log").append("<p>Loading game data...</p>");
+        
+        // Initial player stats load to get proper health values
+        $.ajax({
+          url: "/player_stats",
+          type: "GET",
+          success: function(response) {
+            console.log("Initial player stats loaded:", response);
+            
+            // Get health from the database (handle different possible property names)
+            baseMaxHealth = response.Health || response.health;
+            if (!baseMaxHealth && baseMaxHealth !== 0) {
+              console.warn("No health value found in player stats, using fallback value of 100");
+              baseMaxHealth = 100; // Only use 100 as absolute fallback
+            }
+            
+            // Initialize current health to max health
+            playerHealth = baseMaxHealth;
+            playerMaxHealth = baseMaxHealth;
+            
+            // Get damage value
+            playerDamage = response.Damage || response.damage || 10;
+            
+            console.log("Base max health initialized to:", baseMaxHealth);
+            console.log("Player health initialized to:", playerHealth);
+            console.log("Player damage initialized to:", playerDamage);
+            
+            // Initialize health displays with database values
+            $("#player-max-health").text(baseMaxHealth);
+            $("#persistent-max-health").text(baseMaxHealth);
+            $("#player-health").text(playerHealth);
+            $("#persistent-health").text(playerHealth);
+            
+            // Set the health bar widths
+            $("#player-health-fill").css("width", "100%");
+            $("#persistent-health-fill").css("width", "100%");
+            
+            // Clear loading message
+            $("#game-log").html("<p>Welcome to the Pixel Dungeon Adventure! Click \"Enter Next Room\" to begin your journey.</p>");
+          },
+          error: function(xhr) {
+            console.error("Failed to initialize player stats:", xhr.responseText);
+            
+            // If we can't get player stats, use hardcoded values as ultimate fallback
+            baseMaxHealth = 100;
+            playerHealth = 100;
+            playerMaxHealth = 100;
+            playerDamage = 10;
+            
+            // Initialize displays with fallback values
+            $("#player-max-health").text(baseMaxHealth);
+            $("#persistent-max-health").text(baseMaxHealth);
+            $("#player-health").text(playerHealth);
+            $("#persistent-health").text(playerHealth);
+            $("#player-health-fill").css("width", "100%");
+            $("#persistent-health-fill").css("width", "100%");
+            
+            // Log warning and show error message
+            console.warn("Using fallback values for player stats");
+            $("#game-log").html("<p>Welcome to the Pixel Dungeon Adventure! Click \"Enter Next Room\" to begin your journey.</p>");
+            $("#game-log").append("<p class='error-message'>Could not load player stats. Using default values.</p>");
+          }
+        });
+        
+        // Ensure the reset button always works by using event delegation
+        $(document).on("click", "#reset-button", function(e) {
+          e.preventDefault();
+          resetGame();
+        });
+      });
 
       function logMessage(message, className = "") {
         if (className) {
@@ -775,7 +849,7 @@
         console.log("Starting combat with enemy ID:", enemyId, "Name:", enemyName);
         
         // Safety check - ensure baseMaxHealth is initialized
-        if (baseMaxHealth === undefined) {
+        if (baseMaxHealth === 0) {
           console.warn("baseMaxHealth not initialized, fetching player stats first");
           $.ajax({
             url: "/player_stats",
@@ -1735,77 +1809,6 @@
           });
         }
       }
-
-      // Update the document ready function to initialize baseMaxHealth
-      $(document).ready(function() {
-        // Initial health update and get base max health
-        $.ajax({
-          url: "/player_stats",
-          type: "GET",
-          success: function(response) {
-            console.log("Received player stats:", response);
-            
-            // Set the base max health from the database - this is the starting health value
-            baseMaxHealth = response.Health || response.health;
-            if (!baseMaxHealth && baseMaxHealth !== 0) {
-              console.warn("No health value found in player stats, using fallback value of 100");
-              baseMaxHealth = 100; // Only use 100 as absolute fallback
-            }
-            console.log("Base max health set to:", baseMaxHealth);
-            
-            // Also initialize current health
-            playerHealth = response.Health || response.health || baseMaxHealth;
-            playerMaxHealth = baseMaxHealth;
-            
-            // Update damage value
-            playerDamage = response.Damage || response.damage || 10;
-            
-            // Initialize health displays with database values
-            $("#player-max-health").text(baseMaxHealth);
-            $("#persistent-max-health").text(baseMaxHealth);
-            $("#player-health").text(playerHealth);
-            $("#persistent-health").text(playerHealth);
-            
-            // Set the health bar widths
-            $("#player-health-fill").css("width", (playerHealth / baseMaxHealth * 100) + "%");
-            $("#persistent-health-fill").css("width", (playerHealth / baseMaxHealth * 100) + "%");
-            
-            // Log initial values for debugging
-            console.log("Player health initialized to:", playerHealth);
-            console.log("Player max health initialized to:", playerMaxHealth);
-            
-            // Also update the panels if they're open
-            updatePanelsIfOpen();
-          },
-          error: function(xhr) {
-            console.error("Failed to initialize player stats:", xhr.responseText);
-            
-            // If we can't get player stats, use hardcoded values as ultimate fallback
-            baseMaxHealth = 100;
-            playerHealth = 100;
-            playerMaxHealth = 100;
-            playerDamage = 10;
-            
-            // Initialize displays with fallback values
-            $("#player-max-health").text(baseMaxHealth);
-            $("#persistent-max-health").text(baseMaxHealth);
-            $("#player-health").text(playerHealth);
-            $("#persistent-health").text(playerHealth);
-            $("#player-health-fill").css("width", "100%");
-            $("#persistent-health-fill").css("width", "100%");
-            
-            // Log warning
-            console.warn("Using fallback values for player stats");
-          }
-        });
-        
-        // Ensure the reset button always works by using event delegation
-        // This ensures the click handler works even if the button is removed and re-added
-        $(document).on("click", "#reset-button", function(e) {
-          e.preventDefault();
-          resetGame();
-        });
-      });
     </script>
   </body>
 </html>

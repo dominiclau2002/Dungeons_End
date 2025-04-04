@@ -5,6 +5,7 @@ import pika
 import json
 import logging
 from datetime import datetime
+import time
 
 app = Flask(__name__)
 
@@ -107,14 +108,41 @@ def pick_up_item(room_id, item_id):
     # Step 3: Remove the item from the room
     remove_url = f"{ROOM_SERVICE_URL}/room/{room_id}/item/{item_id}"
     logger.debug(f"Removing item from room: {remove_url}")
-    remove_response = requests.delete(remove_url)
-
+    
+    # Try up to 3 times to remove the item from the room
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        remove_response = requests.delete(remove_url)
+        
+        if remove_response.status_code == 200:
+            logger.debug("Item successfully removed from room")
+            break
+        else:
+            logger.warning(f"Attempt {attempt+1}/{max_attempts} to remove item failed: {remove_response.text}")
+            if attempt < max_attempts - 1:
+                # If this isn't the last attempt, check if the item is still in the room
+                room_check = requests.get(f"{ROOM_SERVICE_URL}/room/{room_id}")
+                if room_check.status_code == 200:
+                    room_data = room_check.json()
+                    item_ids = []
+                    # Try different possible key names
+                    if "ItemIDs" in room_data and isinstance(room_data["ItemIDs"], list):
+                        item_ids = room_data["ItemIDs"]
+                    elif "item_ids" in room_data and isinstance(room_data["item_ids"], list):
+                        item_ids = room_data["item_ids"]
+                    
+                    # If item is not in room, we can consider it removed
+                    if item_id not in item_ids:
+                        logger.info(f"Item {item_id} not found in room {room_id} after initial failure, but seems removed.")
+                        break
+                
+                # Wait briefly before retrying
+                time.sleep(0.5)
+    
+    # If all attempts failed, return error
     if remove_response.status_code != 200:
-        logger.error(
-            f"Failed to remove item from room: {remove_response.text}")
+        logger.error(f"Failed to remove item from room after {max_attempts} attempts: {remove_response.text}")
         return jsonify({"error": "Failed to remove item from room"}), 500
-
-    logger.debug("Item successfully removed from room")
 
     # Step 4: Add the item to the player's inventory
     inventory_url = f"{INVENTORY_SERVICE_URL}/inventory/player/{player_id}/item/{item_id}"

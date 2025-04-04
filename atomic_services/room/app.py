@@ -139,15 +139,39 @@ def remove_item_from_room(room_id, item_id):
             "error": "Room not found"
         }), 404
 
+    # Make sure we're working with a list, not None
     current_items = room.ItemIDs or []
-    if item_id not in current_items:
+    # Convert string item_id to int for comparison if needed
+    try:
+        item_id_int = int(item_id)
+    except (ValueError, TypeError):
+        item_id_int = item_id
+
+    # Check if the item exists in the room using both the original and int versions
+    if item_id not in current_items and item_id_int not in current_items:
         return jsonify({
             "error": "Item not found in room"
         }), 404
 
-    current_items.remove(item_id)
-    room.ItemIDs = current_items
+    # Remove the item, handling potential type differences
+    if item_id in current_items:
+        current_items.remove(item_id)
+    elif item_id_int in current_items:
+        current_items.remove(item_id_int)
+
+    # Ensure we're storing a valid JSON array, not None
+    room.ItemIDs = current_items if current_items else []
     db.session.commit()
+
+    # Verify the item was actually removed by fetching the updated room
+    updated_room = Room.query.get(room_id)
+    if updated_room and ((item_id in (updated_room.ItemIDs or [])) or 
+                        (item_id_int in (updated_room.ItemIDs or []))):
+        # Item still exists, try updating directly with a new list
+        filtered_items = [i for i in (updated_room.ItemIDs or []) 
+                        if i != item_id and i != item_id_int]
+        updated_room.ItemIDs = filtered_items
+        db.session.commit()
 
     return jsonify({
         "message": "Item removed from room",
@@ -187,15 +211,39 @@ def remove_enemy_from_room(room_id, enemy_id):
             "error": "Room not found"
         }), 404
 
+    # Make sure we're working with a list, not None
     current_enemies = room.EnemyIDs or []
-    if enemy_id not in current_enemies:
+    # Convert string enemy_id to int for comparison if needed
+    try:
+        enemy_id_int = int(enemy_id)
+    except (ValueError, TypeError):
+        enemy_id_int = enemy_id
+
+    # Check if the enemy exists in the room using both the original and int versions
+    if enemy_id not in current_enemies and enemy_id_int not in current_enemies:
         return jsonify({
             "error": "Enemy not found in room"
         }), 404
 
-    current_enemies.remove(enemy_id)
-    room.EnemyIDs = current_enemies
+    # Remove the enemy, handling potential type differences
+    if enemy_id in current_enemies:
+        current_enemies.remove(enemy_id)
+    elif enemy_id_int in current_enemies:
+        current_enemies.remove(enemy_id_int)
+
+    # Ensure we're storing a valid JSON array, not None
+    room.EnemyIDs = current_enemies if current_enemies else []
     db.session.commit()
+
+    # Verify the enemy was actually removed by fetching the updated room
+    updated_room = Room.query.get(room_id)
+    if updated_room and ((enemy_id in (updated_room.EnemyIDs or [])) or 
+                        (enemy_id_int in (updated_room.EnemyIDs or []))):
+        # Enemy still exists, try updating directly with a new list
+        filtered_enemies = [e for e in (updated_room.EnemyIDs or []) 
+                         if e != enemy_id and e != enemy_id_int]
+        updated_room.EnemyIDs = filtered_enemies
+        db.session.commit()
 
     return jsonify({
         "message": "Enemy removed from room",

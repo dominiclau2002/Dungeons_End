@@ -14,7 +14,7 @@
       #game-log {
         border: 1px solid black;
         padding: 10px;
-        height: 450px; /* Increased height from 300px to 450px */
+        height: 350px; /* Reduced height to make room for panels */
         overflow-y: auto;
         margin-bottom: 20px;
         text-align: left;
@@ -81,6 +81,93 @@
         color: #f44336;
         font-weight: bold;
       }
+
+      /* Panel Styles */
+      .info-panel {
+        display: none; /* Hidden by default */
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        margin: 0 auto 20px auto;
+        padding: 15px;
+        width: 90%;
+        max-width: 800px;
+        text-align: left;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        animation: panelFade 0.3s ease-in-out;
+      }
+
+      @keyframes panelFade {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      #stats-panel {
+        background-color: #f8f3ff; /* Light purple background */
+        border-left: 5px solid #9b59b6;
+      }
+
+      #inventory-panel {
+        background-color: #f3f8ff; /* Light blue background */
+        border-left: 5px solid #4a89dc;
+      }
+
+      .panel-title {
+        margin-top: 0;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+        font-size: 18px;
+        text-align: center;
+      }
+
+      .stats-title {
+        color: #9b59b6;
+      }
+
+      .inventory-title {
+        color: #4a89dc;
+      }
+
+      .panel-content ul {
+        list-style-type: none;
+        padding: 0;
+      }
+
+      .panel-content li {
+        margin: 8px 0;
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .stat-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 15px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .stat-label {
+        font-weight: bold;
+        color: #9b59b6;
+      }
+
+      .stat-value {
+        font-weight: bold;
+        color: #3498db;
+      }
+
+      .empty-message {
+        color: #95a5a6;
+        font-style: italic;
+        text-align: center;
+        padding: 15px;
+      }
     </style>
   </head>
   <body>
@@ -93,14 +180,28 @@
       </p>
     </div>
 
+    <!-- Stats Panel (Hidden by default) -->
+    <div id="stats-panel" class="info-panel">
+      <h3 class="panel-title stats-title">Player Stats</h3>
+      <div id="stats-content" class="panel-content"></div>
+    </div>
+
+    <!-- Inventory Panel (Hidden by default) -->
+    <div id="inventory-panel" class="info-panel">
+      <h3 class="panel-title inventory-title">Your Inventory</h3>
+      <div id="inventory-content" class="panel-content"></div>
+    </div>
+
     <div id="item-actions"></div>
 
     <div id="game-actions">
       <button id="next-room-btn" onclick="enterRoom()">Enter Next Room</button>
-      <button id="inventory-button" onclick="viewInventory()">
+      <button id="inventory-button" onclick="toggleInventory()">
         View Inventory
       </button>
-      <button id="stats-button" onclick="viewPlayerStats()">View Stats</button>
+      <button id="stats-button" onclick="togglePlayerStats()">
+        View Stats
+      </button>
       <button id="reset-button" onclick="resetGame()" style="display: none">
         Reset Game
       </button>
@@ -119,6 +220,27 @@
         }
         // Auto-scroll to bottom
         $("#game-log").scrollTop($("#game-log")[0].scrollHeight);
+      }
+
+      function togglePanel(panelId) {
+        // Hide all panels first
+        $(".info-panel").hide();
+
+        // Get the panel element
+        const panel = $(`#${panelId}`);
+
+        // Toggle the panel
+        panel.toggle();
+
+        // If panel is visible, scroll to it
+        if (panel.is(":visible")) {
+          $("html, body").animate(
+            {
+              scrollTop: panel.offset().top - 20,
+            },
+            300
+          );
+        }
       }
 
       function createItemButtons(items, room_id) {
@@ -187,6 +309,9 @@
       }
 
       function enterRoom() {
+        // Hide any open panels when entering a new room
+        $(".info-panel").hide();
+
         $.ajax({
           url: "/enter_room",
           type: "POST",
@@ -296,6 +421,9 @@
       }
 
       function resetGame() {
+        // Hide any open panels when resetting the game
+        $(".info-panel").hide();
+
         $.ajax({
           url: "/enter_room",
           type: "POST",
@@ -352,28 +480,45 @@
         });
       }
 
-      function viewInventory() {
+      function toggleInventory() {
+        // First check if inventory panel is already visible
+        if ($("#inventory-panel").is(":visible")) {
+          // If it's visible, just hide it
+          $("#inventory-panel").hide();
+          return;
+        }
+
+        // Otherwise fetch inventory data and show the panel
         $.ajax({
           url: "/view_inventory",
           type: "GET",
           success: function (response) {
-            logMessage("------------------------------");
-            logMessage("Your Inventory:", "inventory-item");
-
             const items = response.items || [];
+            const inventoryContent =
+              document.getElementById("inventory-content");
+
+            // Clear previous content
+            inventoryContent.innerHTML = "";
 
             if (items.length === 0) {
-              logMessage("Your inventory is empty.", "inventory-item");
+              // Display empty inventory message
+              inventoryContent.innerHTML =
+                "<div class='empty-message'>Your inventory is empty.</div>";
             } else {
-              // Each item already has name and description, no need for additional fetches
+              // Create list of items
+              const itemList = document.createElement("ul");
+
               items.forEach((item) => {
-                logMessage(
-                  `- ${item.name}: ${item.description}`,
-                  "inventory-item"
-                );
+                const listItem = document.createElement("li");
+                listItem.innerHTML = `<strong>${item.name}</strong>: ${item.description}`;
+                itemList.appendChild(listItem);
               });
+
+              inventoryContent.appendChild(itemList);
             }
-            logMessage("------------------------------");
+
+            // Show the inventory panel, hide stats panel
+            togglePanel("inventory-panel");
           },
           error: function (xhr) {
             let errorMsg = "Failed to retrieve inventory";
@@ -381,6 +526,7 @@
               errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
             } catch (e) {}
 
+            // Display error in game log instead
             logMessage("------------------------------");
             logMessage(`Error: ${errorMsg}`, "error-message");
             logMessage("------------------------------");
@@ -388,46 +534,50 @@
         });
       }
 
-      function viewPlayerStats() {
+      function togglePlayerStats() {
+        // First check if stats panel is already visible
+        if ($("#stats-panel").is(":visible")) {
+          // If it's visible, just hide it
+          $("#stats-panel").hide();
+          return;
+        }
+
+        // Otherwise fetch stats data and show the panel
         $.ajax({
           url: "/player_stats",
           type: "GET",
           success: function (response) {
-            logMessage("------------------------------");
-            logMessage("Player Stats:", "player-stats");
+            const statsContent = document.getElementById("stats-content");
 
-            // Format player name and class nicely - using lowercase property names
+            // Clear previous content
+            statsContent.innerHTML = "";
 
-            logMessage(
-              `Class: <span class="stats-value">${
-                response.character_class || "Unknown"
-              }</span>`,
-              "player-stats"
-            );
+            // Create stats display with rows
+            const statsContainer = document.createElement("div");
 
-            // Format HP and combat stats - using lowercase property names
-            logMessage(
-              `Health: <span class="stats-value">${
-                response.health || 0
-              }</span>`,
-              "player-stats"
-            );
-            logMessage(
-              `Damage: <span class="stats-value">${
-                response.damage || 0
-              }</span>`,
-              "player-stats"
-            );
+            // Create a row for each stat
+            const stats = [
+              { label: "Name", value: response.name || "Unknown" },
+              { label: "Class", value: response.character_class || "Unknown" },
+              { label: "Health", value: response.health || 0 },
+              { label: "Damage", value: response.damage || 0 },
+              { label: "Current Room", value: response.room_id || 0 },
+            ];
 
-            // Show current location - using lowercase property name
-            logMessage(
-              `Current Room: <span class="stats-value">${
-                response.room_id || 0
-              }</span>`,
-              "player-stats"
-            );
+            stats.forEach((stat) => {
+              const row = document.createElement("div");
+              row.className = "stat-row";
+              row.innerHTML = `
+                <div class="stat-label">${stat.label}:</div>
+                <div class="stat-value">${stat.value}</div>
+              `;
+              statsContainer.appendChild(row);
+            });
 
-            logMessage("------------------------------");
+            statsContent.appendChild(statsContainer);
+
+            // Show the stats panel, hide inventory panel
+            togglePanel("stats-panel");
           },
           error: function (xhr) {
             let errorMsg = "Failed to retrieve player stats";
@@ -435,6 +585,7 @@
               errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
             } catch (e) {}
 
+            // Display error in game log instead
             logMessage("------------------------------");
             logMessage(`Error: ${errorMsg}`, "error-message");
             logMessage("------------------------------");

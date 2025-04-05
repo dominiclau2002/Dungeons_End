@@ -62,9 +62,12 @@ def apply_item_effect():
     if not data:
         return jsonify({"error": "No data provided"}), 400
         
-    player_id = data.get("player_id", 1)
+    player_id = data.get("player_id")
     item_id = data.get("item_id")
     
+    if not player_id:
+        return jsonify({"error": "player_id is required"}), 400
+        
     if not item_id:
         return jsonify({"error": "item_id is required"}), 400
         

@@ -44,6 +44,26 @@
         letter-spacing: 2px;
       }
       
+      h2 {
+        font-family: 'Press Start 2P', cursive;
+        color: var(--gold);
+        text-shadow: 2px 2px 0 #000;
+        font-size: 18px;
+        margin: 10px 0;
+        letter-spacing: 2px;
+      }
+      
+      h2.player-name {
+        font-size: 14px;
+        margin: 5px 0 15px 0;
+        color: var(--forest-green);
+      }
+      
+      #player-name-display {
+        color: var(--gold);
+        text-shadow: 1px 1px 0 #000;
+      }
+      
       /* Pixel border utility class */
       .pixel-border {
         position: relative;
@@ -513,9 +533,10 @@
       }
     </style>
   </head>
-  <body>
-    <div class="game-container">
+  <body data-player-id="{{ player_id }}" data-player-name="{{ player_name }}">
+    <div class="game-container" data-player-id="{{ player_id }}" data-player-name="{{ player_name }}">
       <h1>PIXEL DUNGEON ADVENTURE</h1>
+      <h2 class="player-name">Adventurer: <span id="player-name-display">{{ player_name }}</span></h2>
 
       <div class="game-layout">
         <!-- Left Side Panel -->
@@ -560,6 +581,9 @@
             <button id="reset-button" onclick="resetGame()" style="display: none">
               RESET GAME
             </button>
+            <button id="logout-button" onclick="window.location.href='/logout'">
+              LOGOUT
+            </button>
           </div>
         </div>
 
@@ -599,7 +623,31 @@
     </div>
 
     <script>
-      let player_id = 1;
+      // Set player ID from the data attribute
+      const playerId = document.body.getAttribute('data-player-id');
+      const playerName = document.body.getAttribute('data-player-name');
+      
+      console.log("Game initialized for player:", playerName, "ID:", playerId);
+      
+      // Always include player_id in AJAX requests
+      $(document).ajaxSend(function(event, jqxhr, settings) {
+        // Only modify POST requests with JSON content type
+        if (settings.type === 'POST' && settings.contentType === 'application/json') {
+          try {
+            // Parse the data if it's a string
+            let data = settings.data ? JSON.parse(settings.data) : {};
+            
+            // Add player_id if not present
+            if (!data.player_id) {
+              data.player_id = playerId;
+              settings.data = JSON.stringify(data);
+            }
+          } catch (e) {
+            console.error("Error adding player_id to request:", e);
+          }
+        }
+      });
+
       let current_room_id = 0;
       let room_items = [];
       let refreshingRoom = false; // Flag to track if we're refreshing current room
@@ -617,6 +665,29 @@
       // This will be initialized from the player's database health value
       let baseMaxHealth = 0; 
 
+      // Update player name display
+      document.getElementById('player-name-display').textContent = playerName;
+
+      // Function to refresh the current room data
+      function refreshRoom() {
+        $.ajax({
+          url: "/get_player_room",
+          type: "GET",
+          success: function(roomResponse) {
+            // Get the current room id
+            current_room_id = roomResponse.room_id;
+            console.log("Current room ID:", current_room_id);
+            
+            // Use the existing refreshRoomAfterCombat function which has
+            // the complete logic to update the room UI
+            refreshRoomAfterCombat();
+          },
+          error: function(xhr) {
+            console.error("Failed to get player room:", xhr.responseText);
+          }
+        });
+      }
+
       // Initialize the game by loading player stats first, before doing anything else
       $(document).ready(function() {
         // Show a loading indicator in the game log
@@ -624,7 +695,7 @@
         
         // Initial player stats load to get proper health values
         $.ajax({
-          url: "/player_stats",
+          url: `/player_stats?player_id=${playerId}`,
           type: "GET",
           success: function(response) {
             console.log("Initial player stats loaded:", response);
@@ -659,6 +730,9 @@
             
             // Clear loading message
             $("#game-log").html("<p>Welcome to the Pixel Dungeon Adventure! Click \"Enter Next Room\" to begin your journey.</p>");
+            
+            // Load the current room data
+            refreshRoom();
           },
           error: function(xhr) {
             console.error("Failed to initialize player stats:", xhr.responseText);
@@ -748,6 +822,7 @@
           data: JSON.stringify({
             room_id: roomId,
             item_id: itemId,
+            player_id: playerId
           }),
           success: function (response) {
             // Re-enable the button in case of failure
@@ -852,7 +927,7 @@
         if (baseMaxHealth === 0) {
           console.warn("baseMaxHealth not initialized, fetching player stats first");
           $.ajax({
-            url: "/player_stats",
+            url: `/player_stats?player_id=${playerId}`,
             type: "GET",
             success: function(response) {
               baseMaxHealth = response.Health || response.health || 100;
@@ -875,7 +950,7 @@
         
         // Fetch fresh player stats before starting combat to get accurate health and damage
         $.ajax({
-          url: "/player_stats",
+          url: `/player_stats?player_id=${playerId}`,
           type: "GET",
           success: function(playerStats) {
             // Store current player health and damage
@@ -888,7 +963,9 @@
               url: `/combat/start/${enemyId}`,
               type: "POST",
               contentType: "application/json",
-              data: JSON.stringify({}),
+              data: JSON.stringify({
+                player_id: playerId
+              }),
               success: function(response) {
                 console.log("Combat start response:", response);
                 
@@ -1019,7 +1096,8 @@
             enemy_damage: currentEnemy.damage || 10,
             enemy_attack: currentEnemy.attack || 1,
           turn: currentTurn,
-            room_id: currentEnemy.room_id || current_room_id
+            room_id: currentEnemy.room_id || current_room_id,
+            player_id: playerId
         };
         
         console.log("Attack data being sent:", attackData);
@@ -1108,7 +1186,7 @@
         inCombat = false;
         currentEnemy = null;
         $("#combat-panel").hide();
-        refreshRoom();
+        refreshRoomAfterCombat();
       }
 
       function triggerGameOver(enemyName) {
@@ -1179,7 +1257,9 @@
         const statsVisible = $("#stats-panel").is(":visible");
 
         // Prepare payload - only include target_room_id if we're refreshing the current room
-        const payload = {};
+        const payload = {
+          player_id: playerId
+        };
         if (refreshingRoom) {
           payload.target_room_id = current_room_id;
           refreshingRoom = false; // Reset the flag
@@ -1355,7 +1435,7 @@
 
         // Otherwise fetch inventory data and show the panel
         $.ajax({
-          url: "/view_inventory",
+          url: `/view_inventory?player_id=${playerId}`,
           type: "GET",
           success: function (response) {
             const items = response.items || [];
@@ -1409,7 +1489,7 @@
 
         // Otherwise fetch stats data and show the panel
         $.ajax({
-          url: "/player_stats",
+          url: `/player_stats?player_id=${playerId}`,
           type: "GET",
           success: function (response) {
             const statsContent = document.getElementById("stats-content");
@@ -1474,7 +1554,9 @@
           url: "/reset_game",
           type: "POST",
           contentType: "application/json",
-          data: JSON.stringify({}),
+          data: JSON.stringify({
+            player_id: playerId
+          }),
           success: function (response) {
             console.log("Reset game response:", response);
             
@@ -1573,7 +1655,7 @@
               logMessage(`Failed to reset game: ${response.message || "Unknown error"}`, "error-message");
               logMessage("Try refreshing the page or try again later.", "error-message");
               
-              // Re-enable reset button with original text in case of failure
+              // Re-enable reset button with original text
               resetBtn.prop("disabled", false).text(originalText);
             }
 
@@ -1600,95 +1682,12 @@
         });
       }
 
-      function refreshRoom() {
-        console.log(`Refreshing room ${current_room_id} after combat`);
-        
-        // Store panel visibility states
-        const inventoryVisible = $("#inventory-panel").is(":visible");
-        const statsVisible = $("#stats-panel").is(":visible");
-        
-        // Remove all enemy buttons immediately to prevent clicking on defeated enemies
-        $(".enemy-button").remove();
-        
-        // Make sure combat panel is hidden
-        $("#combat-panel").hide();
-        
-        // Request fresh room data with the current room specifically
-        $.ajax({
-          url: "/enter_room",
-          type: "POST",
-          contentType: "application/json",
-          data: JSON.stringify({ target_room_id: current_room_id }),
-          success: function(response) {
-            console.log("Room refreshed successfully:", response);
-            
-            // Update current room information
-            if (response.room_name) {
-              // Only update room display - don't log new entry messages
-              // Create pickup buttons for items if present
-              if (response.items && response.items.length > 0) {
-                createItemButtons(response.items, current_room_id);
-              }
-              
-              // Create enemy buttons if any remain
-              if (response.enemies && response.enemies.length > 0) {
-                createEnemyButtons(response.enemies, current_room_id);
-              }
-            }
-            
-            // Re-enable navigation
-            $("#next-room-btn").prop("disabled", false);
-            $("#inventory-button").prop("disabled", false);
-            $("#stats-button").prop("disabled", false);
-            
-            // Restore panel visibility states
-            if (inventoryVisible) {
-              $("#inventory-panel").show();
-            }
-            if (statsVisible) {
-              $("#stats-panel").show();
-            }
-
-            // Update panels if they're open (this is in addition to restoring visibility)
-            updatePanelsIfOpen();
-          },
-          error: function(xhr) {
-            console.error("Error refreshing room:", xhr.responseText);
-            
-            // If we get a 403 error about door being locked, show that message
-            if (xhr.status === 403) {
-              try {
-                const errorData = JSON.parse(xhr.responseText);
-                if (errorData.door_locked) {
-                  logMessage(errorData.error, "error-message");
-                }
-              } catch (e) {
-                console.error("Error parsing error response:", e);
-              }
-            }
-            
-            // Re-enable navigation buttons even on error
-            $("#next-room-btn").prop("disabled", false);
-            $("#inventory-button").prop("disabled", false);
-            $("#stats-button").prop("disabled", false);
-            
-            // Restore panel visibility states here too
-            if (inventoryVisible) {
-              $("#inventory-panel").show();
-            }
-            if (statsVisible) {
-              $("#stats-panel").show();
-            }
-          }
-        });
-      }
-
       function updatePlayerHealth(health) {
         console.log("Updating player health to:", health);
         
         // Fetch updated player stats to display current health
         $.ajax({
-          url: "/player_stats",
+          url: `/player_stats?player_id=${playerId}`,
           type: "GET",
           success: function(response) {
             console.log("Updated player stats:", response);
@@ -1736,7 +1735,7 @@
         // Check if inventory panel is open and update it
         if ($("#inventory-panel").is(":visible")) {
           $.ajax({
-            url: "/view_inventory",
+            url: `/view_inventory?player_id=${playerId}`,
             type: "GET",
             success: function (response) {
               const items = response.items || [];
@@ -1771,7 +1770,7 @@
         // Check if stats panel is open and update it
         if ($("#stats-panel").is(":visible")) {
           $.ajax({
-            url: "/player_stats",
+            url: `/player_stats?player_id=${playerId}`,
             type: "GET",
             success: function (response) {
               const statsContent = document.getElementById("stats-content");
@@ -1808,6 +1807,121 @@
             }
           });
         }
+      }
+
+      // Function to refresh room after combat or other events
+      function refreshRoomAfterCombat() {
+        console.log(`Refreshing room ${current_room_id} after combat`);
+         
+        // Store panel visibility states
+        const inventoryVisible = $("#inventory-panel").is(":visible");
+        const statsVisible = $("#stats-panel").is(":visible");
+         
+        // Remove all enemy buttons immediately to prevent clicking on defeated enemies
+        $(".enemy-button").remove();
+         
+        // Make sure combat panel is hidden
+        $("#combat-panel").hide();
+         
+        // Request fresh room data with the current room specifically
+        $.ajax({
+          url: "/enter_room",
+          type: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({ 
+            target_room_id: current_room_id,
+            player_id: playerId
+          }),
+          success: function(response) {
+            console.log("Room refreshed successfully:", response);
+             
+            // Update current room information
+            if (response.room_name) {
+              // If the game log is empty or we're refreshing the page, show the room description
+              if ($("#game-log").text().trim() === '' || document.readyState === "complete") {
+                $("#game-log").html(""); // Clear the game log first
+                logMessage("------------------------------");
+                logMessage(`Room ${response.player_current_room}: ${response.room_name}`);
+                logMessage(response.description);
+                
+                // Display items in the room in the game log
+                if (response.items && response.items.length > 0) {
+                  logMessage("Items in this room:", "item");
+                  response.items.forEach((item) => {
+                    logMessage(`- ${item.name}: ${item.description}`, "item");
+                  });
+                }
+                
+                // Display enemies in the room in the game log
+                if (response.enemies && response.enemies.length > 0) {
+                  logMessage("Enemies in this room:", "enemy");
+                  response.enemies.forEach((enemy) => {
+                    logMessage(`- ${enemy.name}: ${enemy.description}`, "enemy");
+                  });
+                }
+                
+                if ((!response.items || response.items.length === 0) &&
+                    (!response.enemies || response.enemies.length === 0)) {
+                  logMessage("This room is empty.");
+                }
+              }
+              
+              // Create pickup buttons for items if present
+              if (response.items && response.items.length > 0) {
+                createItemButtons(response.items, current_room_id);
+              }
+               
+              // Create enemy buttons if any remain
+              if (response.enemies && response.enemies.length > 0) {
+                createEnemyButtons(response.enemies, current_room_id);
+              }
+            }
+             
+            // Re-enable navigation
+            $("#next-room-btn").prop("disabled", false);
+            $("#inventory-button").prop("disabled", false);
+            $("#stats-button").prop("disabled", false);
+             
+            // Restore panel visibility states
+            if (inventoryVisible) {
+              $("#inventory-panel").show();
+            }
+            if (statsVisible) {
+              $("#stats-panel").show();
+            }
+
+            // Update panels if they're open (this is in addition to restoring visibility)
+            updatePanelsIfOpen();
+          },
+          error: function(xhr) {
+            console.error("Error refreshing room:", xhr.responseText);
+             
+            // If we get a 403 error about door being locked, show that message
+            if (xhr.status === 403) {
+              try {
+                const errorData = JSON.parse(xhr.responseText);
+                if (errorData.door_locked) {
+                  logMessage(errorData.error, "error-message");
+                }
+              } catch (e) {
+                console.error("Error parsing error response:", e);
+              }
+            }
+             
+            // Re-enable navigation buttons even on error
+            $("#next-room-btn").prop("disabled", false);
+            $("#inventory-button").prop("disabled", false);
+            $("#stats-button").prop("disabled", false);
+             
+            // Restore panel visibility states here too
+            if (inventoryVisible) {
+              $("#inventory-panel").show();
+            }
+            if (statsVisible) {
+              $("#stats-panel").show();
+            }
+          }
+        });
       }
     </script>
   </body>

@@ -10,7 +10,7 @@ class Player(db.Model):
     CharacterClass = db.Column(db.Enum('Warrior', 'Rogue', 'Cleric', 'Ranger'), nullable=False)
     Health = db.Column(db.Integer, nullable=False, default=100)
     Damage = db.Column(db.Integer, nullable=False, default=10)
-    RoomID = db.Column(db.Integer, default=1)
+    RoomID = db.Column(db.Integer, default=0)
 
     def to_dict(self):
         return {
@@ -19,5 +19,6 @@ class Player(db.Model):
             "character_class": self.CharacterClass,
             "health": self.Health,
             "damage": self.Damage,
-            "room_id": self.RoomID
+            "room_id": self.RoomID,
+            "RoomID": self.RoomID
         } 

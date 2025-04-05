@@ -67,6 +67,17 @@ services:
       mysql:
         condition: service_healthy
 
+  player_room_interaction_service:
+    build: ./atomic_services/player_room_interaction
+    restart: always
+    environment:
+      DATABASE_URL: mysql+mysqlconnector://user:password@mysql/player_room_interaction_db
+    ports:
+      - "5040:5040"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
   room_service:
     build: ./atomic_services/room
     restart: always
@@ -166,6 +177,7 @@ services:
       SCORE_SERVICE_URL: http://score_service:5008
       ROOM_SERVICE_URL: http://room_service:5016
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+      PLAYER_ROOM_INTERACTION_SERVICE_URL: http://player_room_interaction_service:5040
       # RABBITMQ_HOST: rabbitmq  # This line should be removed
     ports:
       - "5009:5009"
@@ -176,6 +188,7 @@ services:
       - dice_service
       - score_service
       - room_service
+      - player_room_interaction_service
 
   entering_room_service:
     build:
@@ -190,6 +203,7 @@ services:
       ITEM_SERVICE_URL: http://item_service:5002
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
       INVENTORY_SERVICE_URL: http://inventory_service:5001
+      PLAYER_ROOM_INTERACTION_SERVICE_URL: http://player_room_interaction_service:5040
       # RABBITMQ_HOST: rabbitmq  # This line should be removed
     ports:
       - "5011:5011"
@@ -200,6 +214,7 @@ services:
       - item_service
       - activity_log_service
       - room_service
+      - player_room_interaction_service
 
   manage_game_service:
     build:
@@ -246,6 +261,7 @@ services:
       ITEM_SERVICE_URL: http://item_service:5002
       APPLY_ITEM_EFFECTS_SERVICE_URL: http://apply_item_effects_service:5025
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+      PLAYER_ROOM_INTERACTION_SERVICE_URL: http://player_room_interaction_service:5040
       # RABBITMQ_HOST: rabbitmq  # This line should be removed
     ports:
       - "5019:5019"
@@ -255,6 +271,7 @@ services:
       - item_service
       - apply_item_effects_service
       - activity_log_service
+      - player_room_interaction_service
 
   apply_item_effects_service:
     build:
@@ -309,6 +326,7 @@ services:
       PICK_UP_ITEM_SERVICE_URL: http://pick_up_item_service:5019
       ROOM_SERVICE_URL: http://room_service:5016
       ITEM_SERVICE_URL: http://item_service:5002
+      PLAYER_ROOM_INTERACTION_SERVICE_URL: http://player_room_interaction_service:5040
     depends_on:
       - player_service
       - entering_room_service
@@ -317,3 +335,4 @@ services:
       - pick_up_item_service
       - room_service
       - item_service
+      - player_room_interaction_service

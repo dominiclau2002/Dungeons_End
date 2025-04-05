@@ -32,7 +32,7 @@ def create_player():
         }), 400
 
     # Validate character class
-    valid_classes = ['Warrior', 'Rogue', 'Cleric', 'Ranger']
+    valid_classes = ['Warrior', 'Rogue']
     if data['character_class'] not in valid_classes:
         return jsonify({
             "error": "Invalid character class",
@@ -46,20 +46,32 @@ def create_player():
             "error": "Player with this name already exists"
         }), 409
 
+    # Set class-specific stats
+    if data['character_class'] == 'Warrior':
+        health = 200
+        damage = 10
+    else:  # Rogue
+        health = 150
+        damage = 20
+
+    print(f"Creating new player with RoomID=0")  # Add logging
     new_player = Player(
         Name=data['name'],
         CharacterClass=data['character_class'],
-        Health=data.get('health', 100),
-        Damage=data.get('damage', 10),
-        RoomID=data.get('room_id', 1)
+        Health=health,
+        Damage=damage,
+        RoomID=0
     )
 
     db.session.add(new_player)
     db.session.commit()
 
+    player_dict = new_player.to_dict()
+    print(f"Player created: {player_dict}")  # Add logging to show the result
+
     return jsonify({
         "message": "Player created successfully",
-        "player": new_player.to_dict()
+        "player": player_dict
     }), 201
 
 # ✅ Get player details
@@ -148,6 +160,16 @@ def get_all_players():
         "players": [player.to_dict() for player in players]
     }), 200
 
+# ✅ Find player by name
+@app.route('/player/name/<string:player_name>', methods=['GET'])
+def get_player_by_name(player_name):
+    player = Player.query.filter_by(Name=player_name).first()
+    if not player:
+        return jsonify({
+            "error": "Player not found"
+        }), 404
+
+    return jsonify(player.to_dict()), 200
 
 if __name__ == "__main__":
     with app.app_context():

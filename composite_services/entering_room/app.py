@@ -23,6 +23,7 @@ ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5016")
 # Fix: Use the actual atomic inventory service, not the composite service
 INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:5001")
 ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
+PLAYER_ROOM_INTERACTION_SERVICE_URL = os.getenv("PLAYER_ROOM_INTERACTION_SERVICE_URL", "http://player_room_interaction_service:5014")
 
 # def log_activity(player_id, action):
 #     """
@@ -84,47 +85,61 @@ def enter_room(room_id):
                 if current_room_response.status_code == 200:
                     current_room = current_room_response.json()
                     
-                    # Check for enemies in different formats
-                    has_enemies = False
-                    enemy_ids = []
+                    # Get all enemy IDs from the room
+                    room_enemy_ids = []
+                    if 'enemy_ids' in current_room and isinstance(current_room['enemy_ids'], list):
+                        room_enemy_ids = current_room['enemy_ids']
+                    elif 'EnemyIDs' in current_room and isinstance(current_room['EnemyIDs'], list):
+                        room_enemy_ids = current_room['EnemyIDs']
+                    elif 'enemies' in current_room and isinstance(current_room['enemies'], list):
+                        for enemy in current_room['enemies']:
+                            if isinstance(enemy, dict):
+                                enemy_id = enemy.get("id") or enemy.get("EnemyID")
+                                if enemy_id:
+                                    room_enemy_ids.append(enemy_id)
+                            elif isinstance(enemy, int):
+                                room_enemy_ids.append(enemy)
                     
-                    # Get enemy IDs from multiple possible formats and field names
-                    if 'enemies' in current_room and current_room['enemies'] and len(current_room['enemies']) > 0:
-                        has_enemies = True
-                        logger.debug(f"Found enemies in 'enemies' field: {current_room['enemies']}")
-                    elif 'EnemyIDs' in current_room and current_room['EnemyIDs'] and len(current_room['EnemyIDs']) > 0:
-                        enemy_ids = current_room['EnemyIDs']
-                        has_enemies = True
-                        logger.debug(f"Found enemies in 'EnemyIDs' field: {enemy_ids}")
-                    elif 'enemy_ids' in current_room and current_room['enemy_ids'] and len(current_room['enemy_ids']) > 0:
-                        enemy_ids = current_room['enemy_ids']
-                        has_enemies = True
-                        logger.debug(f"Found enemies in 'enemy_ids' field: {enemy_ids}")
+                    logger.debug(f"Room {current_room_id} has enemies: {room_enemy_ids}")
                     
-                    # If we found enemies, double-check they're valid by querying the enemy service
-                    if has_enemies and enemy_ids:
-                        valid_enemies = []
-                        # Verify each enemy exists and is valid
-                        for enemy_id in enemy_ids:
-                            try:
-                                enemy_check = requests.get(f"{ENEMY_SERVICE_URL}/enemy/{enemy_id}", timeout=3)
-                                if enemy_check.status_code == 200:
-                                    valid_enemies.append(enemy_id)
-                                else:
-                                    logger.warning(f"Enemy ID {enemy_id} not found in enemy service - ignoring")
-                            except Exception as e:
-                                logger.error(f"Error checking enemy {enemy_id}: {str(e)}")
+                    # If there are enemies in the room, check if all have been defeated
+                    if room_enemy_ids:
+                        # Get player's interactions with this room
+                        interaction_url = f"{PLAYER_ROOM_INTERACTION_SERVICE_URL}/player/{player_id}/room/{current_room_id}/interactions"
+                        logger.debug(f"Checking player interactions: {interaction_url}")
                         
-                        # Update has_enemies based on validation
-                        has_enemies = len(valid_enemies) > 0
-                        logger.debug(f"After validation, found {len(valid_enemies)} valid enemies")
-                    
-                    if has_enemies:
-                        logger.debug(f"Player {player_id} cannot proceed - enemies remain in room {current_room_id}")
-                        return jsonify({
-                            "error": "You cannot leave this room until you defeat all enemies!",
-                            "enemies_present": True
-                        }), 403
+                        try:
+                            interaction_response = requests.get(interaction_url)
+                            if interaction_response.status_code == 200:
+                                interaction_data = interaction_response.json()
+                                logger.debug(f"Player interactions: {interaction_data}")
+                                
+                                # Get the list of enemies the player has defeated in this room
+                                defeated_enemies = interaction_data.get('enemies_defeated', [])
+                                logger.debug(f"Player has defeated enemies: {defeated_enemies}")
+                                
+                                # Check if there are undefeated enemies
+                                undefeated_enemies = [enemy_id for enemy_id in room_enemy_ids if enemy_id not in defeated_enemies]
+                                
+                                if undefeated_enemies:
+                                    logger.debug(f"Player {player_id} cannot proceed - undefeated enemies remain in room {current_room_id}: {undefeated_enemies}")
+                                    return jsonify({
+                                        "error": "You cannot leave this room until you defeat all enemies!",
+                                        "enemies_present": True
+                                    }), 403
+                            else:
+                                logger.error(f"Failed to get player interactions: {interaction_response.text}")
+                                # We'll be cautious and not allow the player to proceed if we can't verify
+                                return jsonify({
+                                    "error": "Could not verify enemy status. Please try again.",
+                                    "enemies_present": True
+                                }), 500
+                        except Exception as e:
+                            logger.error(f"Error checking player interactions: {str(e)}")
+                            return jsonify({
+                                "error": "Could not verify enemy status. Please try again.",
+                                "enemies_present": True
+                            }), 500
 
     # ✅ Fetch room details
     logger.debug(f"Fetching details for room {room_id}")
@@ -166,41 +181,50 @@ def enter_room(room_id):
     if door_locked:
         logger.debug(f"Room {room_id} door is locked, checking if player {player_id} has the key (item ID 5)")
         
-        # Fix: Use the correct endpoint for the atomic inventory service
+        # Check inventory first - the player might have the key in their inventory
         inventory_url = f"{INVENTORY_SERVICE_URL}/inventory/player/{player_id}"
         logger.debug(f"Requesting inventory from: {inventory_url}")
         
+        has_key = False
+        
         try:
+            # Check if the player has the key in their inventory
             inventory_response = requests.get(inventory_url)
             
-            if inventory_response.status_code != 200:
-                error_msg = f"Failed to check inventory: {inventory_response.text if hasattr(inventory_response, 'text') else 'No response text'}"
-                logger.error(error_msg)
+            if inventory_response.status_code == 200:
+                inventory_data = inventory_response.json()
+                logger.debug(f"Inventory data received: {inventory_data}")
                 
-                # Add more diagnostic information
-                logger.debug(f"Inventory service URL: {INVENTORY_SERVICE_URL}")
-                logger.debug(f"Full inventory request URL: {inventory_url}")
-                logger.debug(f"Status code: {inventory_response.status_code}")
+                # The atomic inventory service returns {"player_id": X, "inventory": [1,2,3]}
+                item_ids = inventory_data.get("inventory", [])
+                logger.debug(f"Player's inventory item IDs: {item_ids}")
                 
-                # Still proceed with the door locked message
-                return jsonify({
-                    "error": "This door is locked! You need a Lockpick to proceed.",
-                    "door_locked": True,
-                    "details": "Could not verify key possession"
-                }), 403
+                # Check if item ID 5 (the lockpick) is in the inventory
+                has_key = 5 in item_ids
+                
+                logger.debug(f"Player has key in inventory: {has_key}")
             
-            # Extract item IDs from the atomic inventory service response
-            inventory_data = inventory_response.json()
-            logger.debug(f"Inventory data received: {inventory_data}")
-            
-            # The atomic inventory service returns {"player_id": X, "inventory": [1,2,3]}
-            item_ids = inventory_data.get("inventory", [])
-            logger.debug(f"Player's inventory item IDs: {item_ids}")
-            
-            # Check if item ID 5 (the lockpick) is in the inventory
-            has_key = 5 in item_ids
-            
-            logger.debug(f"Player has key: {has_key}")
+            # If player doesn't have the key in inventory, check if they've picked it up before
+            # by looking at the player_room_interaction service
+            if not has_key:
+                # We need to check all previous rooms to see if the player picked up the key
+                # Get player interactions across all rooms
+                all_interactions_url = f"{PLAYER_ROOM_INTERACTION_SERVICE_URL}/player/{player_id}/interactions"
+                interactions_response = requests.get(all_interactions_url)
+                
+                if interactions_response.status_code == 200:
+                    interactions_data = interactions_response.json()
+                    logger.debug(f"All player interactions: {interactions_data}")
+                    
+                    # Loop through all room interactions
+                    for interaction in interactions_data.get('interactions', []):
+                        # Check if item 5 was picked up in any room
+                        if 5 in interaction.get('items_picked', []):
+                            has_key = True
+                            logger.debug(f"Player has previously picked up the key in room {interaction.get('room_id')}")
+                            break
+                else:
+                    logger.error(f"Failed to check player's interaction history: {interactions_response.text}")
             
             if not has_key:
                 logger.debug("Player does not have the required key")
@@ -208,17 +232,23 @@ def enter_room(room_id):
                     "error": "This door is locked! You need a Lockpick to proceed.",
                     "door_locked": True
                 }), 403
+                
         except Exception as e:
-            logger.error(f"Exception when checking inventory: {str(e)}")
+            logger.error(f"Exception when checking for key: {str(e)}")
             return jsonify({
                 "error": "This door is locked! You need a Lockpick to proceed.",
                 "door_locked": True,
-                "details": f"Error checking inventory: {str(e)}"
+                "details": f"Error checking for key: {str(e)}"
             }), 403
 
     # ✅ Update player's location
-    requests.put(f"{PLAYER_SERVICE_URL}/player/{player_id}",
+    logger.debug(f"Setting player {player_id} location to room {room_id}")
+    update_response = requests.put(f"{PLAYER_SERVICE_URL}/player/{player_id}",
                  json={"room_id": room_id})
+    if update_response.status_code != 200:
+        logger.error(f"Failed to update player location: {update_response.text}")
+    else:
+        logger.debug(f"Successfully updated player location to room {room_id}")
 
     # ✅ Log room entry via RabbitMQ
     room_name = room.get('name') or room.get('Name') or f"Room {room_id}"
@@ -351,6 +381,39 @@ def enter_room(room_id):
         except Exception as e:
             logger.error(f"Error getting enemy {enemy_id}: {str(e)}")
 
+    # ✅ Filter out items and enemies based on player interactions
+    try:
+        # Get player's interactions with this specific room
+        interaction_url = f"{PLAYER_ROOM_INTERACTION_SERVICE_URL}/player/{player_id}/room/{room_id}/interactions"
+        logger.debug(f"Checking player room interactions: {interaction_url}")
+        
+        interaction_response = requests.get(interaction_url)
+        if interaction_response.status_code == 200:
+            interaction_data = interaction_response.json()
+            logger.debug(f"Player room interactions: {interaction_data}")
+            
+            # Get lists of picked up items and defeated enemies
+            picked_items = interaction_data.get('items_picked', [])
+            defeated_enemies = interaction_data.get('enemies_defeated', [])
+            
+            logger.debug(f"Player has picked up items: {picked_items}")
+            logger.debug(f"Player has defeated enemies: {defeated_enemies}")
+            
+            # Filter out items that have already been picked up
+            filtered_items = [item for item in items if item['id'] not in picked_items]
+            
+            # Filter out enemies that have already been defeated
+            filtered_enemies = [enemy for enemy in enemies if enemy['id'] not in defeated_enemies]
+            
+            # Update our lists
+            items = filtered_items
+            enemies = filtered_enemies
+            
+            logger.debug(f"After filtering - Remaining items: {[item['id'] for item in items]}")
+            logger.debug(f"After filtering - Remaining enemies: {[enemy['id'] for enemy in enemies]}")
+    except Exception as e:
+        logger.error(f"Error filtering items/enemies based on player interactions: {str(e)}")
+        # Continue with unfiltered lists if there's an error
 
 
     # ✅ Return comprehensive room information

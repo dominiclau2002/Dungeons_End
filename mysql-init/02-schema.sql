@@ -6,7 +6,7 @@ CREATE TABLE Player (
     CharacterClass ENUM('Warrior', 'Rogue', 'Cleric', 'Ranger') NOT NULL,
     Health INT NOT NULL DEFAULT 100,
     Damage INT NOT NULL DEFAULT 10,
-    RoomID INT DEFAULT 1
+    RoomID INT DEFAULT 0
 );
 
 -- ✅ Use `enemy_db`
@@ -92,9 +92,9 @@ VALUES
 USE room_db;
 INSERT INTO Room (Description, ItemIDs, EnemyIDs, DoorLocked)
 VALUES
-('A dark room with a treasure chest', '[1, 2]', '[]', FALSE),
-('A bright room with a fountain', '[3, 5]', '[1]', FALSE),
-('A mysterious cave', '[4]', '[2]', TRUE);
+('A dark chamber with stone walls covered in ancient runes. A weathered treasure chest sits in the corner, its lock gleaming in the dim torchlight. There is a door to the north that beckons you forward.', '[1, 2]', '[]', FALSE),
+('A sun-drenched room with a marble fountain at its center, water sparkling as it cascades down. Colorful tapestries adorn the walls depicting epic battles. There are doors to the south and east.', '[3, 5]', '[1]', FALSE),
+('A mysterious cave with stalactites hanging from the ceiling, dripping water creating eerie echoes. Glowing mushrooms provide faint blue light. A heavy iron door to the west appears to be locked.', '[4]', '[2]', TRUE);
 
 -- Insert data into Player table
 USE player_db;

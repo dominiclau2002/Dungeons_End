@@ -19,6 +19,7 @@ INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_ser
 ITEM_SERVICE_URL = os.getenv("ITEM_SERVICE_URL", "http://item_service:5002")
 APPLY_ITEM_EFFECTS_SERVICE_URL = os.getenv("APPLY_ITEM_EFFECTS_SERVICE_URL", "http://apply_item_effects_service:5025")
 ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
+PLAYER_ROOM_INTERACTION_SERVICE_URL = os.getenv("PLAYER_ROOM_INTERACTION_SERVICE_URL", "http://player_room_interaction_service:5040")
 
 # def log_activity(player_id, action):
 #     """
@@ -55,9 +56,14 @@ ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activit
 def pick_up_item(room_id, item_id):
     """
     Picks up an item from a room and adds it to the player's inventory.
-    Player ID is assumed to be 1.
+    Expects player_id in the request JSON, falls back to default if not provided.
     """
-    player_id = 1  # Hardcoded player ID
+    data = request.get_json() or {}
+    player_id = data.get("player_id")
+    
+    if not player_id:
+        logger.warning("No player_id provided in request, operation will fail")
+        return jsonify({"error": "player_id is required"}), 400
 
     logger.debug(
         f"Attempting to pick up item {item_id} from room {room_id} for player {player_id}")
@@ -109,46 +115,35 @@ def pick_up_item(room_id, item_id):
 
     logger.debug(f"Item details retrieved: {item_name}")
 
-    # Step 3: Remove the item from the room
-    remove_url = f"{ROOM_SERVICE_URL}/room/{room_id}/item/{item_id}"
-    logger.debug(f"Removing item from room: {remove_url}")
+    # Step 3: Check if the player has already picked up this item
+    # by querying the player_room_interaction service
+    interaction_url = f"{PLAYER_ROOM_INTERACTION_SERVICE_URL}/player/{player_id}/room/{room_id}/interactions"
+    interaction_response = requests.get(interaction_url)
     
-    # Try up to 3 times to remove the item from the room
-    max_attempts = 3
-    for attempt in range(max_attempts):
-        remove_response = requests.delete(remove_url)
+    if interaction_response.status_code == 200:
+        interaction_data = interaction_response.json()
+        items_picked = interaction_data.get('items_picked', [])
         
-        if remove_response.status_code == 200:
-            logger.debug("Item successfully removed from room")
-            break
-        else:
-            logger.warning(f"Attempt {attempt+1}/{max_attempts} to remove item failed: {remove_response.text}")
-            if attempt < max_attempts - 1:
-                # If this isn't the last attempt, check if the item is still in the room
-                room_check = requests.get(f"{ROOM_SERVICE_URL}/room/{room_id}")
-                if room_check.status_code == 200:
-                    room_data = room_check.json()
-                    item_ids = []
-                    # Try different possible key names
-                    if "ItemIDs" in room_data and isinstance(room_data["ItemIDs"], list):
-                        item_ids = room_data["ItemIDs"]
-                    elif "item_ids" in room_data and isinstance(room_data["item_ids"], list):
-                        item_ids = room_data["item_ids"]
-                    
-                    # If item is not in room, we can consider it removed
-                    if item_id not in item_ids:
-                        logger.info(f"Item {item_id} not found in room {room_id} after initial failure, but seems removed.")
-                        break
-                
-                # Wait briefly before retrying
-                time.sleep(0.5)
-    
-    # If all attempts failed, return error
-    if remove_response.status_code != 200:
-        logger.error(f"Failed to remove item from room after {max_attempts} attempts: {remove_response.text}")
-        return jsonify({"error": "Failed to remove item from room"}), 500
+        if item_id in items_picked:
+            logger.warning(f"Player {player_id} has already picked up item {item_id} from room {room_id}")
+            return jsonify({
+                "error": "You have already picked up this item",
+                "player_id": player_id,
+                "item_id": item_id,
+                "room_id": room_id
+            }), 400
 
-    # Step 4: Add the item to the player's inventory
+    # Step 4: Record that the player picked up the item using player_room_interaction service
+    pickup_url = f"{PLAYER_ROOM_INTERACTION_SERVICE_URL}/player/{player_id}/room/{room_id}/item/{item_id}/pickup"
+    pickup_response = requests.post(pickup_url)
+    
+    if pickup_response.status_code not in (200, 201):
+        logger.error(f"Failed to record item pickup in player_room_interaction service: {pickup_response.text}")
+        return jsonify({"error": "Failed to record item pickup"}), 500
+    
+    logger.debug(f"Successfully recorded pickup of item {item_id} in room {room_id} for player {player_id}")
+
+    # Step 5: Add the item to the player's inventory
     inventory_url = f"{INVENTORY_SERVICE_URL}/inventory/player/{player_id}/item/{item_id}"
     logger.debug(f"Adding item to inventory: {inventory_url}")
     inventory_response = requests.post(inventory_url)
@@ -156,24 +151,17 @@ def pick_up_item(room_id, item_id):
     if inventory_response.status_code != 201:
         logger.error(
             f"Failed to add item to inventory: {inventory_response.text}")
-        # If adding to inventory fails, try to put the item back in the room
-        restore_url = f"{ROOM_SERVICE_URL}/room/{room_id}/item/{item_id}"
-        logger.debug(f"Attempting to restore item to room: {restore_url}")
-        restore_response = requests.post(restore_url)
-
-        if restore_response.status_code != 200:
-            logger.error(
-                f"Also failed to restore item to room: {restore_response.text}")
-
+        # If adding to inventory fails, try to remove the record from player_room_interaction service
+        # (This is a cleanup step, but we don't have an API for this yet)
         return jsonify({"error": "Failed to add item to inventory"}), 500
 
     logger.debug("Item successfully added to inventory")
 
-    # Step 5: Log the activity via activity log service
+    # Step 6: Log the activity via activity log service
     log_message = f"Picked up {item_name} (ID: {item_id}) from room {room_id}"
     log_activity(player_id, log_message)
     
-    # Step 6: Check for special item effects and apply them
+    # Step 7: Check for special item effects and apply them
     response_data = {
         "message": f"Successfully picked up {item_name}",
         "player_id": player_id,

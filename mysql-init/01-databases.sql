@@ -8,6 +8,7 @@ DROP DATABASE IF EXISTS score_db;
 DROP DATABASE IF EXISTS calculator_db;
 DROP DATABASE IF EXISTS room_db;
 DROP DATABASE IF EXISTS character_db;
+DROP DATABASE IF EXISTS player_room_interaction_db;
 
 -- Create separate databases for microservices
 CREATE DATABASE player_db;
@@ -19,6 +20,7 @@ CREATE DATABASE calculator_db;
 CREATE DATABASE score_db;
 CREATE DATABASE room_db;
 CREATE DATABASE character_db;
+CREATE DATABASE player_room_interaction_db;
 
 -- Grant permissions to the user for all databases
 CREATE USER IF NOT EXISTS 'user'@'%' IDENTIFIED BY 'password';
@@ -31,4 +33,5 @@ GRANT ALL PRIVILEGES ON calculator_db.* TO 'user'@'%';
 GRANT ALL PRIVILEGES ON score_db.* TO 'user'@'%';
 GRANT ALL PRIVILEGES ON room_db.* TO 'user'@'%';
 GRANT ALL PRIVILEGES ON character_db.* TO 'user'@'%';
+GRANT ALL PRIVILEGES ON player_room_interaction_db.* TO 'user'@'%';
 FLUSH PRIVILEGES; 

@@ -51,8 +51,37 @@ def get_room(room_id):
         return jsonify({
             "error": "Room not found"
         }), 404
-
-    return jsonify(room.to_dict()), 200
+    
+    # Get the basic room data as a dictionary
+    room_data = room.to_dict()
+    
+    # Check if player_id is provided as a query parameter
+    player_id = request.args.get('player_id')
+    
+    # If player_id is provided, filter items and enemies based on player interactions
+    if player_id:
+        try:
+            # Call the player_room_interaction service to get player's interactions with this room
+            import requests
+            interaction_url = f"http://player_room_interaction_service:5040/player/{player_id}/room/{room_id}/interactions"
+            response = requests.get(interaction_url)
+            
+            if response.status_code == 200:
+                # Get the interaction data
+                interaction_data = response.json()
+                
+                # Filter out items that the player has already picked up
+                items_picked = interaction_data.get('items_picked', [])
+                room_data['ItemIDs'] = [item_id for item_id in room_data.get('ItemIDs', []) if item_id not in items_picked]
+                
+                # Filter out enemies that the player has already defeated
+                enemies_defeated = interaction_data.get('enemies_defeated', [])
+                room_data['EnemyIDs'] = [enemy_id for enemy_id in room_data.get('EnemyIDs', []) if enemy_id not in enemies_defeated]
+        except Exception as e:
+            # Log the error but don't fail the request
+            print(f"Error filtering room data for player {player_id}: {str(e)}")
+    
+    return jsonify(room_data), 200
 
 # ✅ API to Get All Rooms
 @app.route("/rooms", methods=["GET"])

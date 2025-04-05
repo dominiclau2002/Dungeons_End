@@ -19,6 +19,7 @@ PLAYER_SERVICE_URL = os.getenv("PLAYER_SERVICE_URL", "http://player_service:5000
 DICE_SERVICE_URL = os.getenv("DICE_SERVICE_URL", "http://personal-eamy64us.outsystemscloud.com/DiceService/rest/DiceRollAPI/RESTAPIMethod1")
 ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5016")
 ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
+PLAYER_ROOM_INTERACTION_SERVICE_URL = os.getenv("PLAYER_ROOM_INTERACTION_SERVICE_URL", "http://player_room_interaction_service:5040")
 
 # def log_activity(player_id, action):
 #     """
@@ -109,7 +110,7 @@ def attack():
         logger.debug(f"Attack request data: {data}")
         
         # Get parameters with defaults
-        player_id = data.get("player_id", 1)
+        player_id = data.get("player_id")
         enemy_id = data.get("enemy_id")
         player_health = int(data.get("player_health", 100))
         enemy_health = int(data.get("enemy_health", 100))
@@ -124,6 +125,10 @@ def attack():
         if not enemy_id:
             logger.error("Missing enemy_id parameter")
             return jsonify({"error": "enemy_id is required"}), 400
+            
+        if not player_id:
+            logger.error("Missing player_id parameter")
+            return jsonify({"error": "player_id is required"}), 400
         
         # Validate room_id is provided
         if not room_id:
@@ -183,85 +188,23 @@ def attack():
                     except Exception as e:
                         logger.error(f"Error updating player health after victory: {str(e)}")
                     
-                    # Remove enemy from room if room_id is provided
+                    # Record enemy defeat in player_room_interaction service if room_id is provided
                     if room_id:
                         try:
-                            logger.info(f"Player defeated enemy {enemy_id} in room {room_id}")
+                            logger.info(f"Player {player_id} defeated enemy {enemy_id} in room {room_id}")
                             
-                            # First check the current room data to see what we're working with
-                            check_url = f"{ROOM_SERVICE_URL}/room/{room_id}"
-                            check_response = requests.get(check_url)
+                            # Record the defeat in player_room_interaction service
+                            interaction_url = f"{PLAYER_ROOM_INTERACTION_SERVICE_URL}/player/{player_id}/room/{room_id}/enemy/{enemy_id}/defeat"
+                            interaction_response = requests.post(interaction_url)
                             
-                            if check_response.status_code == 200:
-                                room_data = check_response.json()
-                                logger.info(f"Current room data before removal: {room_data}")
-                                
-                                # Check all possible formats for enemy IDs
-                                enemy_ids = []
-                                if "EnemyIDs" in room_data and isinstance(room_data["EnemyIDs"], list):
-                                    enemy_ids = room_data["EnemyIDs"]
-                                    logger.info(f"Found EnemyIDs: {enemy_ids}")
-                                elif "enemy_ids" in room_data and isinstance(room_data["enemy_ids"], list):
-                                    enemy_ids = room_data["enemy_ids"]
-                                    logger.info(f"Found enemy_ids: {enemy_ids}")
-                                
-                                # Check if the enemy is in the room before attempting removal
-                                if enemy_id in enemy_ids:
-                                    # Direct call to remove enemy from room
-                                    remove_url = f"{ROOM_SERVICE_URL}/room/{room_id}/enemy/{enemy_id}"
-                                    logger.info(f"Removing enemy from room: DELETE {remove_url}")
-                                    
-                                    remove_response = requests.delete(remove_url, timeout=10)
-                                    
-                                    if remove_response.status_code == 200:
-                                        logger.info(f"Successfully removed enemy {enemy_id} from room {room_id}")
-                                        combat_log.append("The enemy has been defeated and removed from the room.")
-                                        
-                                        # Double-check the room state after removal
-                                        verify_response = requests.get(check_url)
-                                        if verify_response.status_code == 200:
-                                            updated_room = verify_response.json()
-                                            logger.info(f"Room data after removal: {updated_room}")
-                                            
-                                            # Verify enemy was actually removed from all possible fields
-                                            still_present = False
-                                            if "EnemyIDs" in updated_room and isinstance(updated_room["EnemyIDs"], list):
-                                                if enemy_id in updated_room["EnemyIDs"]:
-                                                    still_present = True
-                                            if "enemy_ids" in updated_room and isinstance(updated_room["enemy_ids"], list):
-                                                if enemy_id in updated_room["enemy_ids"]:
-                                                    still_present = True
-                                                    
-                                            if still_present:
-                                                logger.error(f"Enemy {enemy_id} still present in room data after DELETE operation")
-                                                # Try forcing an update with PUT
-                                                logger.info("Attempting forced removal with PUT operation")
-                                                
-                                                # Create new enemy list without the defeated enemy
-                                                if "EnemyIDs" in updated_room and isinstance(updated_room["EnemyIDs"], list):
-                                                    updated_room["EnemyIDs"] = [e for e in updated_room["EnemyIDs"] if e != enemy_id]
-                                                if "enemy_ids" in updated_room and isinstance(updated_room["enemy_ids"], list):
-                                                    updated_room["enemy_ids"] = [e for e in updated_room["enemy_ids"] if e != enemy_id]
-                                                
-                                                # Update the room with PUT
-                                                update_url = f"{ROOM_SERVICE_URL}/room/{room_id}"
-                                                update_response = requests.put(update_url, json=updated_room)
-                                                
-                                                if update_response.status_code == 200:
-                                                    logger.info(f"Successfully forced enemy removal via PUT")
-                                                else:
-                                                    logger.error(f"Failed to force remove enemy: {update_response.status_code}")
-                                            else:
-                                                logger.info(f"Verification confirmed enemy {enemy_id} removed from room {room_id}")
-                                    else:
-                                        logger.error(f"Failed to remove enemy from room: {remove_response.status_code} - {remove_response.text}")
-                                        combat_log.append("The enemy appears to be defeated, but something went wrong.")
-                                else:
-                                    logger.info(f"Enemy {enemy_id} not found in room {room_id} - already removed")
+                            if interaction_response.status_code in (200, 201):
+                                logger.info(f"Successfully recorded enemy {enemy_id} defeat for player {player_id} in room {room_id}")
+                                combat_log.append("Your victory was recorded.")
                             else:
-                                logger.error(f"Failed to get room data: {check_response.status_code}")
+                                logger.error(f"Failed to record enemy defeat: {interaction_response.status_code} - {interaction_response.text}")
+                                combat_log.append("The enemy appears to be defeated, but something went wrong.")
                         except Exception as e:
-                            logger.error(f"Error removing enemy from room: {str(e)}")
+                            logger.error(f"Error recording enemy defeat: {str(e)}")
                             logger.exception("Stack trace:")
                     
                     # Log victory and update player stats

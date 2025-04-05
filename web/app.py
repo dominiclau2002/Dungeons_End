@@ -1,12 +1,14 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 import requests
 import os
 from datetime import datetime
 import logging
 from composite_services.utilities.activity_logger import log_activity
+import secrets
 
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(16))
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -28,6 +30,8 @@ ROOM_SERVICE_URL = os.getenv(
 COMBAT_SERVICE_URL = os.getenv(
     "COMBAT_SERVICE_URL", "http://fight_enemy_service:5009")
 ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
+PLAYER_ROOM_INTERACTION_SERVICE_URL = os.getenv(
+    "PLAYER_ROOM_INTERACTION_SERVICE_URL", "http://player_room_interaction_service:5040")
 
 
 # def log_activity(player_id, action):
@@ -62,27 +66,155 @@ ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activit
 #         return False
 
 
+# Add login routes
+@app.route("/login", methods=["GET"])
+def login_page():
+    """Renders the login page."""
+    if 'player_id' in session:
+        return redirect(url_for('home'))
+    return render_template("login.html")
+
+@app.route("/login", methods=["POST"])
+def login():
+    """Logs in an existing player or creates a new one."""
+    data = request.form
+    player_name = data.get('player_name')
+    character_class = data.get('character_class', 'Warrior')
+    
+    if not player_name:
+        return jsonify({"error": "Player name is required"}), 400
+    
+    # Check if player exists
+    try:
+        # Try to find player by name
+        player_search_response = requests.get(
+            f"{PLAYER_SERVICE_URL}/player/name/{player_name}"
+        )
+        
+        if player_search_response.status_code == 200:
+            # Player exists, use existing ID
+            player_data = player_search_response.json()
+            # Extract player ID from response - check all possible key names
+            player_id = player_data.get('PlayerID') or player_data.get('player_id')
+            logger.info(f"Player '{player_name}' found, ID: {player_id}")
+            session['player_id'] = player_id
+            session['player_name'] = player_name
+            return redirect(url_for('home'))
+        elif player_search_response.status_code == 404:
+            # Player not found, create new player
+            new_player_response = requests.post(
+                f"{PLAYER_SERVICE_URL}/player",
+                json={"name": player_name, "character_class": character_class}
+            )
+            
+            if new_player_response.status_code == 201:
+                player_data = new_player_response.json()
+                # Log the full response for debugging
+                logger.debug(f"Player creation response: {player_data}")
+                
+                # The player ID is nested inside the "player" object
+                player_obj = player_data.get('player', {})
+                # Try both possible key names
+                player_id = player_obj.get('player_id') or player_obj.get('PlayerID')
+                
+                logger.info(f"New player '{player_name}' created, ID: {player_id}")
+                
+                if not player_id:
+                    logger.error(f"Failed to extract player ID from response: {player_data}")
+                    return jsonify({"error": "Failed to extract player ID from response"}), 500
+                    
+                session['player_id'] = player_id
+                session['player_name'] = player_name
+                return redirect(url_for('home'))
+            else:
+                logger.error(f"Failed to create new player: {new_player_response.text}")
+                return jsonify({"error": "Failed to create new player"}), 500
+        else:
+            logger.error(f"Unexpected response from player service: {player_search_response.text}")
+            return jsonify({"error": "Failed to check player existence"}), 500
+    except requests.RequestException as e:
+        logger.error(f"Request error when calling player service: {str(e)}")
+        return jsonify({"error": "Failed to connect to player service"}), 500
+
+@app.route("/logout", methods=["GET"])
+def logout():
+    """Logs out the current player."""
+    session.pop('player_id', None)
+    session.pop('player_name', None)
+    return redirect(url_for('login_page'))
+
+# Helper function to get current player ID
+def get_current_player_id():
+    """Gets the current player ID from the session or returns None if not logged in."""
+    return session.get('player_id')
+
+# Middleware to check if player is logged in
+@app.before_request
+def check_logged_in():
+    """Ensures the player is logged in for protected routes."""
+    # List of routes that don't require login
+    public_routes = ['login', 'login_page', 'logout', 'static']
+    
+    # Check if the route requires login
+    if request.endpoint not in public_routes and 'player_id' not in session:
+        # If it's an API route or AJAX request, return JSON error
+        if request.path.startswith('/api/') or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"error": "Not logged in"}), 401
+        # Otherwise redirect to login page
+        return redirect(url_for('login_page'))
+
 @app.route("/")
 def home():
     """Renders the game UI."""
-    return render_template("index.html")
+    player_id = session.get('player_id')
+    player_name = session.get('player_name')
+    
+    if player_id is None:
+        logger.error(f"Player ID is None for player name: {player_name}")
+        # Redirect to login if player_id is missing
+        return redirect(url_for('login_page'))
+        
+    return render_template("index.html", player_id=player_id, player_name=player_name)
 
 
 
 
 @app.route("/get_player_room", methods=["GET"])
 def get_player_room():
-    """Gets the player's current room ID, assuming player ID is always 1."""
-    player_id = 1  # Hardcoded player ID as requested
+    """Gets the player's current room ID."""
+    player_id = get_current_player_id()
 
     # Get player data from player service
     response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
     if response.status_code != 200:
+        logger.error(f"Failed to get player data: {response.text}")
         return jsonify({"error": "Could not retrieve player data"}), response.status_code
 
     player_data = response.json()
-    room_id = player_data.get("RoomID", 0)
-    logger.debug(f"GET /get_player_room - Current player room ID: {room_id}")
+    logger.debug(f"Raw player data from service: {player_data}")
+    
+    # Check for both uppercase and lowercase key variants
+    room_id = player_data.get("RoomID")
+    logger.debug(f"RoomID from response: {room_id}")
+    
+    if room_id is None:
+        room_id = player_data.get("room_id", 0)
+        logger.debug(f"room_id from response (or default 0): {room_id}")
+    
+    # Ensure we have an integer value
+    if room_id is not None:
+        try:
+            room_id = int(room_id)
+        except (ValueError, TypeError):
+            logger.error(f"Invalid room_id value: {room_id}, defaulting to 0")
+            room_id = 0
+    
+    # Set room_id to 0 if it's somehow still None
+    if room_id is None:
+        logger.warning("room_id is still None after checks, forcing to 0")
+        room_id = 0
+        
+    logger.debug(f"GET /get_player_room - Final room ID: {room_id}")
     return jsonify({"room_id": room_id})
 
 
@@ -93,18 +225,20 @@ def enter_room():
     
     # Set default player ID
     if "player_id" not in data:
-        data["player_id"] = 1
+        data["player_id"] = get_current_player_id()
+    
+    player_id = data["player_id"]
     
     # Handle target_room_id if provided (for room refresh after combat)
     target_room_id = data.get("target_room_id")
     
     if target_room_id is not None:
-        logger.debug(f"Target room ID provided: {target_room_id}. Refreshing current room.")
+        logger.debug(f"Target room ID provided: {target_room_id}. Refreshing current room for player {player_id}.")
         # Direct call to specific room endpoint
         room_url = f"{ENTERING_ROOM_SERVICE_URL}/room/{target_room_id}"
     else:
         # Use the next room endpoint which increments the room
-        logger.debug("No target room ID - using next_room endpoint.")
+        logger.debug(f"No target room ID - using next_room endpoint for player {player_id}.")
         room_url = f"{ENTERING_ROOM_SERVICE_URL}/next_room"
     
     try:
@@ -126,7 +260,7 @@ def enter_room():
                 # Check if this is a room that doesn't exist response (end of game)
                 if "room not found" in error_data.get("error", "").lower():
                     # Get the current player room to check if it's beyond what we have
-                    player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{data['player_id']}")
+                    player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
                     if player_response.status_code == 200:
                         player_data = player_response.json()
                         current_room = player_data.get("RoomID", player_data.get("room_id", 0))
@@ -134,7 +268,7 @@ def enter_room():
                         # If player is already beyond room 3, it's definitely end of game
                         if current_room >= 3:
                             logger.info(f"End of game detected - player in room {current_room} trying to go beyond")
-                            return create_end_of_game_response(data['player_id'])
+                            return create_end_of_game_response(player_id)
                     
                     # If we can't determine the room, just pass through the 404
                     return jsonify(error_data), 404
@@ -184,15 +318,26 @@ def pick_up_item():
     room_id = data.get('room_id')
     item_id = data.get('item_id')
     
-    logger.debug(f"POST /pick_up_item - Delegating to pick_up_item service")
+    # Get player_id from the request first, fallback to session if not provided
+    player_id = data.get('player_id')
+    if not player_id:
+        player_id = get_current_player_id()
+        
+    logger.debug(f"POST /pick_up_item - Delegating to pick_up_item service for player {player_id}")
     
     if not room_id or not item_id:
         return jsonify({"error": "Room ID and Item ID are required"}), 400
     
+    if not player_id:
+        return jsonify({"error": "Player ID is required"}), 400
+    
+    # Add player_id to the request
+    pickup_data = {"player_id": player_id}
+    
     # Simply pass the request to the composite service
     try:
         pickup_url = f"{PICK_UP_ITEM_SERVICE_URL}/room/{room_id}/item/{item_id}/pickup"
-        response = requests.post(pickup_url)
+        response = requests.post(pickup_url, json=pickup_data)
         
         # Pass through the response
         return jsonify(response.json()), response.status_code
@@ -206,10 +351,16 @@ def pick_up_item():
 @app.route("/view_inventory", methods=["GET"])
 def view_inventory():
     """Retrieves the player's inventory with item details."""
-    player_id = 1  # Hardcoded player ID
+    # Check for player_id in query parameters first, fallback to session
+    player_id = request.args.get('player_id')
+    if not player_id:
+        player_id = get_current_player_id()
 
     logger.debug(
         f"GET /view_inventory - Retrieving inventory for player ID: {player_id}")
+
+    if not player_id:
+        return jsonify({"error": "Player ID is required"}), 400
 
     # Log the inventory view activity
     log_activity(player_id, "Viewed inventory")
@@ -292,10 +443,11 @@ def fetch_item_details_batch():
 @app.route("/room_info/<int:room_id>", methods=["GET"])
 def get_room_info(room_id):
     """Gets room information without entering the room."""
-    logger.debug(f"GET /room_info/{room_id} - Checking room info")
+    player_id = get_current_player_id()
+    logger.debug(f"GET /room_info/{room_id} - Checking room info for player {player_id}")
 
     # This endpoint just forwarded to the room service
-    room_url = f"{ROOM_SERVICE_URL}/room/{room_id}"
+    room_url = f"{ROOM_SERVICE_URL}/room/{room_id}?player_id={player_id}"
     logger.debug(f"Calling room service: {room_url}")
 
     response = requests.get(room_url)
@@ -309,10 +461,16 @@ def get_room_info(room_id):
 @app.route("/player_stats", methods=["GET"])
 def player_stats():
     """Retrieves the player's stats from the player service."""
-    player_id = 1  # Hardcoded player ID
+    # Check for player_id in query parameters first, fallback to session
+    player_id = request.args.get('player_id')
+    if not player_id:
+        player_id = get_current_player_id()
 
     logger.debug(
         f"GET /player_stats - Retrieving stats for player ID: {player_id}")
+
+    if not player_id:
+        return jsonify({"error": "Player ID is required"}), 400
 
     # Call the player service to get player data
     player_url = f"{PLAYER_SERVICE_URL}/player/{player_id}"
@@ -339,7 +497,7 @@ def player_stats():
 @app.route("/combat/start/<int:enemy_id>", methods=["POST"])
 def start_combat(enemy_id):
     """Starts combat with an enemy"""
-    player_id = 1  # Hardcoded player ID
+    player_id = get_current_player_id()
     
     # Call the fight_enemy service
     combat_url = f"{COMBAT_SERVICE_URL}/combat/start/{enemy_id}"
@@ -361,13 +519,14 @@ def start_combat(enemy_id):
 @app.route("/combat/attack", methods=["POST"])
 def combat_attack():
     """Proxy to the fight_enemy composite service."""
+    player_id = get_current_player_id()
     data = request.get_json()
     
-    logger.debug(f"POST /combat/attack - Delegating to fight_enemy service")
+    logger.debug(f"POST /combat/attack - Delegating to fight_enemy service for player {player_id}")
     
     # Add player_id if not present
     if "player_id" not in data:
-        data["player_id"] = 1
+        data["player_id"] = player_id
     
     # Simply pass the request to the composite service
     try:
@@ -384,7 +543,7 @@ def combat_attack():
 @app.route("/reset_game", methods=["POST"])
 def reset_game():
     """Reset the player's progress by setting them back to room 0."""
-    player_id = 1  # Hardcoded player ID
+    player_id = get_current_player_id()
     
     logger.debug(f"POST /reset_game - Calling full game reset for player {player_id}")
     

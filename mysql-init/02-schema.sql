@@ -4,7 +4,8 @@ CREATE TABLE Player (
     PlayerID INT AUTO_INCREMENT PRIMARY KEY,
     Name VARCHAR(50) UNIQUE NOT NULL,
     CharacterClass ENUM('Warrior', 'Rogue', 'Cleric', 'Ranger') NOT NULL,
-    Health INT NOT NULL DEFAULT 100,
+    MaxHealth INT NOT NULL DEFAULT 100,
+    CurrentHealth INT NOT NULL DEFAULT 100,
     Damage INT NOT NULL DEFAULT 10,
     RoomID INT DEFAULT 0
 );
@@ -97,10 +98,10 @@ VALUES
 ('A mysterious cave with stalactites hanging from the ceiling, dripping water creating eerie echoes. Glowing mushrooms provide faint blue light. A heavy iron door to the west appears to be locked.', '[4]', '[2]', TRUE);
 
 -- Insert data into Player table
-USE player_db;
-INSERT INTO Player (Name, CharacterClass, Health, Damage, RoomID)
-VALUES
-('Player1', 'Warrior', 200, 10, 0);
+-- USE player_db;
+-- INSERT INTO Player (Name, CharacterClass, Health, Damage, RoomID)
+-- VALUES
+-- ('Player1', 'Warrior', 200, 10, 0);
 
 -- Insert sample score data
 USE score_db;

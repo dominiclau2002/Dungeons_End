@@ -50,8 +50,13 @@ def reset_character_progress(player_id):
     if player_response.status_code != 200:
         return jsonify({"error": "Player not found"}), 404
 
-    # ✅ Reset player progress
-    requests.put(f"{PLAYER_SERVICE_URL}/player/{player_id}", json={"health": 100, "room_id": 0})
+    # Get player data to determine max health
+    player_data = player_response.json()
+    max_health = player_data.get("max_health", player_data.get("MaxHealth", 100))
+    
+    # ✅ Reset player progress - restore full health and set room to 0
+    requests.put(f"{PLAYER_SERVICE_URL}/player/{player_id}", 
+                 json={"current_health": max_health, "room_id": 0})
 
     # ✅ Reset all enemies
     requests.get(f"{ENEMY_SERVICE_URL}/reset")
@@ -85,11 +90,14 @@ def full_game_reset(player_id):
         player_name = player_data.get("name", f"Player {player_id}")
         logger.debug(f"Found player: {player_name}")
         
+        # Get max health value
+        max_health = player_data.get("max_health", player_data.get("MaxHealth", 100))
+        
         # Step 2: Reset player stats and location
         try:
             player_reset = requests.put(
                 f"{PLAYER_SERVICE_URL}/player/{player_id}", 
-                json={"health": 100, "damage": 10, "room_id": 0},
+                json={"current_health": max_health, "max_health": max_health, "damage": 10, "room_id": 0},
                 timeout=5
             )
             if player_reset.status_code == 200:

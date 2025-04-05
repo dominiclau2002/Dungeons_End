@@ -700,15 +700,13 @@
           success: function(response) {
             console.log("Initial player stats loaded:", response);
             
-            // Get health from the database (handle different possible property names)
-            baseMaxHealth = response.Health || response.health;
-            if (!baseMaxHealth && baseMaxHealth !== 0) {
-              console.warn("No health value found in player stats, using fallback value of 100");
-              baseMaxHealth = 100; // Only use 100 as absolute fallback
-            }
+            // Get max health from the database (handle different possible property names)
+            baseMaxHealth = response.max_health || response.MaxHealth || response.Health || response.health || 100;
             
-            // Initialize current health to max health
-            playerHealth = baseMaxHealth;
+            // Get current health from the database (with fallback to max health)
+            playerHealth = response.current_health || response.CurrentHealth || response.health || response.Health || baseMaxHealth;
+            
+            // Set max health for display
             playerMaxHealth = baseMaxHealth;
             
             // Get damage value
@@ -724,9 +722,10 @@
             $("#player-health").text(playerHealth);
             $("#persistent-health").text(playerHealth);
             
-            // Set the health bar widths
-            $("#player-health-fill").css("width", "100%");
-            $("#persistent-health-fill").css("width", "100%");
+            // Set the health bar widths (use current health / max health ratio)
+            const healthRatio = (playerHealth / baseMaxHealth) * 100;
+            $("#player-health-fill").css("width", healthRatio + "%");
+            $("#persistent-health-fill").css("width", healthRatio + "%");
             
             // Clear loading message
             $("#game-log").html("<p>Welcome to the Pixel Dungeon Adventure! Click \"Enter Next Room\" to begin your journey.</p>");
@@ -930,7 +929,7 @@
             url: `/player_stats?player_id=${playerId}`,
             type: "GET",
             success: function(response) {
-              baseMaxHealth = response.Health || response.health || 100;
+              baseMaxHealth = response.max_health || response.MaxHealth || response.Health || response.health || 100;
               console.log("Initialized baseMaxHealth to", baseMaxHealth);
               // Now call startCombat again
               startCombat(enemyId, enemyName);
@@ -954,7 +953,8 @@
           type: "GET",
           success: function(playerStats) {
             // Store current player health and damage
-            const currentPlayerHealth = playerStats.Health || playerStats.health || 100;
+            const currentPlayerHealth = playerStats.current_health || playerStats.CurrentHealth || playerStats.health || playerStats.Health || 100;
+            const maxHealth = playerStats.max_health || playerStats.MaxHealth || playerStats.Health || playerStats.health || 100;
             playerDamage = playerStats.Damage || playerStats.damage || 10;
             
             console.log("Starting combat with player damage:", playerDamage);
@@ -981,22 +981,22 @@
                   room_id: current_room_id
                 };
                 
-                // Set health values - ALWAYS use baseMaxHealth as max
-                playerHealth = response.player.health || currentPlayerHealth;
-                playerMaxHealth = baseMaxHealth; // Always use the base max health
+                // Set health values - Use the max_health from player stats or response
+                playerHealth = response.player.current_health || response.player.health || currentPlayerHealth;
+                playerMaxHealth = maxHealth; // Use the max health from player stats
                 enemyHealth = response.enemy.health || 100;
                 enemyMaxHealth = response.enemy.max_health || 100;
                 currentTurn = response.turn || "player";
                 
-                // Update UI with correct max health value
+                // Update UI with correct health values
                 $("#player-health").text(playerHealth);
-                $("#player-max-health").text(baseMaxHealth);
-                $("#player-health-fill").css("width", (playerHealth / baseMaxHealth * 100) + "%");
+                $("#player-max-health").text(playerMaxHealth);
+                $("#player-health-fill").css("width", (playerHealth / playerMaxHealth * 100) + "%");
                 
                 // Also update persistent health display
                 $("#persistent-health").text(playerHealth);
-                $("#persistent-max-health").text(baseMaxHealth);
-                $("#persistent-health-fill").css("width", (playerHealth / baseMaxHealth * 100) + "%");
+                $("#persistent-max-health").text(playerMaxHealth);
+                $("#persistent-health-fill").css("width", (playerHealth / playerMaxHealth * 100) + "%");
                 
                 $("#enemy-name").text(currentEnemy.name);
                 $("#enemy-health").text(enemyHealth);
@@ -1692,11 +1692,9 @@
           success: function(response) {
             console.log("Updated player stats:", response);
             
-            // Update player health in UI directly with the server value
-            const currentHealth = response.Health || response.health || health;
-            
-            // Use baseMaxHealth instead of server-returned max health
-            const maxHealth = baseMaxHealth;
+            // Update player health in UI directly with the server values
+            const currentHealth = response.current_health || response.CurrentHealth || response.health || response.Health || health;
+            const maxHealth = response.max_health || response.MaxHealth || response.Health || response.health || baseMaxHealth;
             
             // Update damage value for future combats
             playerDamage = response.Damage || response.damage || 10;

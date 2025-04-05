@@ -75,6 +75,10 @@ def start_combat(enemy_id):
         return jsonify({"error": "Player not found"}), 404
     
     player = player_response.json()
+    
+    # Extract player health data
+    player_max_health = player.get("max_health", player.get("MaxHealth", 100))
+    player_current_health = player.get("current_health", player.get("CurrentHealth", player.get("health", player.get("Health", 100))))
 
     # ✅ Log combat start via RabbitMQ (using case-insensitive access)
     log_activity(player_id, f"Engaged in combat with {enemy_data.get('name', 'Unknown Enemy')}")
@@ -91,9 +95,10 @@ def start_combat(enemy_id):
             "max_health": enemy_data.get('health', 100)
         },
         "player": {
-            "health": player.get("Health", player.get("health", 100)),
-            "damage": player.get("Damage", player.get("damage", 10)),
-            "max_health": player.get("Health", player.get("health", 100))
+            "health": player_current_health,
+            "current_health": player_current_health,
+            "max_health": player_max_health,
+            "damage": player.get("Damage", player.get("damage", 10))
         },
         "combat": True,
         "turn": "player"  # Player always goes first
@@ -180,7 +185,7 @@ def attack():
                     try:
                         update_response = requests.put(
                             f"{PLAYER_SERVICE_URL}/player/{player_id}", 
-                            json={"health": player_health}
+                            json={"current_health": player_health}
                         )
                         
                         if update_response.status_code != 200:
@@ -255,12 +260,19 @@ def attack():
                             if player_response.status_code == 200:
                                 player_data = player_response.json()
                                 
-                                # Handle different case formats
+                                # Handle different case formats for max health
                                 max_health = None
-                                for key in ["Health", "health", "MAX_HEALTH", "max_health"]:
+                                for key in ["max_health", "MaxHealth"]:
                                     if key in player_data:
                                         max_health = player_data[key]
                                         break
+                                
+                                # Fall back to Health/health if no max_health is found
+                                if max_health is None:
+                                    for key in ["Health", "health"]:
+                                        if key in player_data:
+                                            max_health = player_data[key]
+                                            break
                                 
                                 if max_health is None:
                                     max_health = 100  # Default if not found
@@ -268,14 +280,14 @@ def attack():
                                 # Calculate remaining health and ensure it's at least 1
                                 remaining_health = max(1, int(max_health * 0.25))
                                 
-                                # Update the player's health
+                                # Update the player's current health
                                 update_response = requests.put(
                                     f"{PLAYER_SERVICE_URL}/player/{player_id}", 
-                                    json={"health": remaining_health}
+                                    json={"current_health": remaining_health}
                                 )
                                 
                                 if update_response.status_code == 200:
-                                    logger.info(f"Updated player {player_id} health to {remaining_health}")
+                                    logger.info(f"Updated player {player_id} current health to {remaining_health}")
                                     player_health = remaining_health
                                     combat_log.append(f"You survived with {remaining_health} health remaining.")
                                 else:

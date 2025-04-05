@@ -48,17 +48,18 @@ def create_player():
 
     # Set class-specific stats
     if data['character_class'] == 'Warrior':
-        health = 200
+        max_health = 200
         damage = 10
     else:  # Rogue
-        health = 150
+        max_health = 150
         damage = 20
 
     print(f"Creating new player with RoomID=0")  # Add logging
     new_player = Player(
         Name=data['name'],
         CharacterClass=data['character_class'],
-        Health=health,
+        MaxHealth=max_health,
+        CurrentHealth=max_health,  # Set current health equal to max health initially
         Damage=damage,
         RoomID=0
     )
@@ -67,7 +68,7 @@ def create_player():
     db.session.commit()
 
     player_dict = new_player.to_dict()
-    print(f"Player created: {player_dict}")  # Add logging to show the result
+    print(f"Player created: {player_dict}")  # Add logging
 
     return jsonify({
         "message": "Player created successfully",
@@ -117,8 +118,15 @@ def update_player(player_id):
             }), 400
         player.CharacterClass = data['character_class']
 
-    if "health" in data:
-        player.Health = data['health']
+    # Update health fields
+    if "max_health" in data:
+        player.MaxHealth = data['max_health']
+    if "current_health" in data:
+        player.CurrentHealth = data['current_health']
+    # For backward compatibility
+    if "health" in data and "current_health" not in data:
+        player.CurrentHealth = data['health']
+        
     if "damage" in data:
         player.Damage = data['damage']
     if "room_id" in data:

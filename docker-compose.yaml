@@ -132,11 +132,6 @@ services:
       mysql:
         condition: service_healthy
 
-  dice_service:
-    build: ./atomic_services/dice
-    restart: always
-    ports:
-      - "5007:5007"
 
   score_service:
     build: ./atomic_services/score
@@ -172,7 +167,6 @@ services:
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
       ENEMY_SERVICE_URL: http://enemy_service:5005
-      # DICE_SERVICE_URL: http://dice_service:5007
       DICE_SERVICE_URL: http://personal-eamy64us.outsystemscloud.com/DiceService/rest/DiceRollAPI/RESTAPIMethod1
       SCORE_SERVICE_URL: http://score_service:5008
       ROOM_SERVICE_URL: http://room_service:5016
@@ -185,7 +179,6 @@ services:
       - player_service
       - enemy_service
       - activity_log_service
-      - dice_service
       - score_service
       - room_service
       - player_room_interaction_service
@@ -225,7 +218,7 @@ services:
       PLAYER_SERVICE_URL: http://player_service:5000
       ENEMY_SERVICE_URL: http://enemy_service:5005
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
-      # RABBITMQ_HOST: rabbitmq  # This line should be removed
+
     ports:
       - "5014:5014"
     depends_on:
@@ -242,7 +235,7 @@ services:
       INVENTORY_SERVICE_URL: http://inventory_service:5001
       ITEM_SERVICE_URL: http://item_service:5002
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
-      # RABBITMQ_HOST: rabbitmq  # This line should be removed
+ 
     ports:
       - "5010:5010"
     depends_on:
@@ -282,7 +275,7 @@ services:
       PLAYER_SERVICE_URL: http://player_service:5000
       ITEM_SERVICE_URL: http://item_service:5002
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
-      # RABBITMQ_HOST: rabbitmq  # This line should be removed
+   
     ports:
       - "5025:5025"
     depends_on:

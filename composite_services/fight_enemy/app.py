@@ -287,9 +287,12 @@ def attack():
             if current_turn == "enemy" and not is_combat_over:
                 # Enemy attacks player
                 try:
-                    enemy_dice_response = requests.get(f"{DICE_SERVICE_URL}/roll?sides=6&count=1")
+                    # enemy_dice_response = requests.get(f"{DICE_SERVICE_URL}/roll?sides=6&count=1")
+                    enemy_dice_response = requests.get(f"{DICE_SERVICE_URL}")
+
                     enemy_dice_data = enemy_dice_response.json()
-                    enemy_dice_roll = enemy_dice_data["results"][0]
+                    # enemy_dice_roll = enemy_dice_data["results"][0]
+                    enemy_dice_roll = enemy_dice_data
                     
                     total_enemy_damage = max(1, enemy_damage * enemy_attack * enemy_dice_roll // 6)
                     player_health -= total_enemy_damage

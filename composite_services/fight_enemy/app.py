@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # ✅ Microservice URLs
 ENEMY_SERVICE_URL = os.getenv("ENEMY_SERVICE_URL", "http://enemy_service:5005")
 PLAYER_SERVICE_URL = os.getenv("PLAYER_SERVICE_URL", "http://player_service:5000")
-DICE_SERVICE_URL = os.getenv("DICE_SERVICE_URL", "http://dice_service:5007")
+DICE_SERVICE_URL = os.getenv("DICE_SERVICE_URL", "http://personal-eamy64us.outsystemscloud.com/DiceService/rest/DiceRollAPI/RESTAPIMethod1")
 ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5016")
 ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 
@@ -146,13 +146,17 @@ def attack():
         # Rest of your combat logic here
         try:
             # Roll dice for damage calculation
-            dice_response = requests.get(f"{DICE_SERVICE_URL}/roll?sides=6&count=1")
+            # dice_response = requests.get(f"{DICE_SERVICE_URL}/roll?sides=6&count=1")
+            dice_response = requests.get(f"{DICE_SERVICE_URL}")
+            
+
             if dice_response.status_code != 200:
                 logger.error(f"Dice service error: {dice_response.text}")
                 return jsonify({"error": "Failed to roll dice"}), 500
                 
             dice_data = dice_response.json()
-            dice_roll = dice_data["results"][0]
+            # dice_roll = dice_data["results"][0]
+            dice_roll = dice_data
             
             if current_turn == "player":
                 # Player attacks enemy

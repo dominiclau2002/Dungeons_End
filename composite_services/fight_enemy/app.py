@@ -271,56 +271,58 @@ def attack():
                         winner = "enemy"
                         combat_log.append("You were defeated!")
                         
-                        # Update player health in database to 25% of max health if defeated
-                        try:
-                            # Get current player data first
-                            player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
-                            if player_response.status_code == 200:
-                                player_data = player_response.json()
+                
+                        
+                        # # Update player health in database to 25% of max health if defeated
+                        # try:
+                        #     # Get current player data first
+                        #     player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+                        #     if player_response.status_code == 200:
+                        #         player_data = player_response.json()
                                 
-                                # Handle different case formats for max health
-                                max_health = None
-                                for key in ["max_health", "MaxHealth"]:
-                                    if key in player_data:
-                                        max_health = player_data[key]
-                                        break
+                        #         # Handle different case formats for max health
+                        #         max_health = None
+                        #         for key in ["max_health", "MaxHealth"]:
+                        #             if key in player_data:
+                        #                 max_health = player_data[key]
+                        #                 break
                                 
-                                # Fall back to Health/health if no max_health is found
-                                if max_health is None:
-                                    for key in ["Health", "health"]:
-                                        if key in player_data:
-                                            max_health = player_data[key]
-                                            break
+                        #         # Fall back to Health/health if no max_health is found
+                        #         if max_health is None:
+                        #             for key in ["Health", "health"]:
+                        #                 if key in player_data:
+                        #                     max_health = player_data[key]
+                        #                     break
                                 
-                                if max_health is None:
-                                    max_health = 100  # Default if not found
+                        #         if max_health is None:
+                        #             max_health = 100  # Default if not found
                                     
-                                # Calculate remaining health and ensure it's at least 1
-                                remaining_health = max(1, int(max_health * 0.25))
+                        #         # Calculate remaining health and ensure it's at least 1
+                        #         remaining_health = max(1, int(max_health * 0.25))
                                 
-                                # Update the player's current health
-                                update_response = requests.put(
-                                    f"{PLAYER_SERVICE_URL}/player/{player_id}", 
-                                    json={"current_health": remaining_health}
-                                )
+                        #         # Update the player's current health
+                        #         update_response = requests.put(
+                        #             f"{PLAYER_SERVICE_URL}/player/{player_id}", 
+                        #             json={"current_health": remaining_health}
+                        #         )
                                 
-                                if update_response.status_code == 200:
-                                    logger.info(f"Updated player {player_id} current health to {remaining_health}")
-                                    player_health = remaining_health
-                                    combat_log.append(f"You survived with {remaining_health} health remaining.")
-                                else:
-                                    logger.error(f"Failed to update player health: {update_response.text}")
-                                    combat_log.append("You survived with some health remaining.")
-                            else:
-                                logger.error(f"Failed to get player data: {player_response.text}")
-                                combat_log.append("You survived with some health remaining.")
-                        except Exception as e:
-                            logger.error(f"Error updating player health after defeat: {str(e)}")
-                            player_health = 25  # Default if player update fails
-                            combat_log.append("You survived with some health remaining.")
+                        #         if update_response.status_code == 200:
+                        #             logger.info(f"Updated player {player_id} current health to {remaining_health}")
+                        #             player_health = remaining_health
+                        #             combat_log.append(f"You survived with {remaining_health} health remaining.")
+                        #         else:
+                        #             logger.error(f"Failed to update player health: {update_response.text}")
+                        #             combat_log.append("You survived with some health remaining.")
+                        #     else:
+                        #         logger.error(f"Failed to get player data: {player_response.text}")
+                        #         combat_log.append("You survived with some health remaining.")
+                        # except Exception as e:
+                        #     logger.error(f"Error updating player health after defeat: {str(e)}")
+                        #     player_health = 25  # Default if player update fails
+                        #     combat_log.append("You survived with some health remaining.")
                         
                         # Log defeat
-                        log_activity(player_id, f"Defeated {enemy_name}")
+                        log_activity(player_id, f"Defeated by {enemy_name}")
                     else:
                         # Switch turn back to player
                         current_turn = "player"

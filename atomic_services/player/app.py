@@ -32,7 +32,7 @@ def create_player():
         }), 400
 
     # Validate character class
-    valid_classes = ['Warrior', 'Rogue']
+    valid_classes = ['Warrior', 'Rogue','Cleric', 'Ranger']
     if data['character_class'] not in valid_classes:
         return jsonify({
             "error": "Invalid character class",
@@ -47,12 +47,19 @@ def create_player():
         }), 409
 
     # Set class-specific stats
+
     if data['character_class'] == 'Warrior':
         max_health = 200
         damage = 10
-    else:  # Rogue
+    elif data['character_class'] == 'Rogue':
         max_health = 150
         damage = 20
+    elif data['character_class'] == 'Cleric':
+        max_health = 175
+        damage = 15
+    else:  # Ranger
+        max_health = 160
+        damage = 18
 
     print(f"Creating new player with RoomID=0")  # Add logging
     new_player = Player(

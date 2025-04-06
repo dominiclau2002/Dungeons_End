@@ -96,5 +96,33 @@ def view_inventory(player_id):
         "inventory": enhanced_inventory
     })
 
+@app.route('/items/batch', methods=['POST'])
+def fetch_item_details_batch():
+    """
+    Fetches details for multiple items at once.
+    """
+    data = request.get_json()
+    item_ids = data.get('item_ids', [])
+
+    if not item_ids:
+        return jsonify({"error": "Item IDs are required"}), 400
+
+    items = []
+    for item_id in item_ids:
+        # Call the item service to get item details
+        item_response = requests.get(f"{ITEM_SERVICE_URL}/item/{item_id}")
+        
+        if item_response.status_code == 200:
+            items.append(item_response.json())
+        else:
+            # Include a placeholder for failed items
+            items.append({
+                "item_id": item_id,
+                "name": "Unknown Item",
+                "description": "Item details unavailable"
+            })
+
+    return jsonify({"items": items})
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5010, debug=True)

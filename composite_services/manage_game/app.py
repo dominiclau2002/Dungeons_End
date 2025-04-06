@@ -214,5 +214,60 @@ def full_game_reset(player_id):
             "reset_details": reset_results
         }), 500
 
+@app.route('/game/end/<int:player_id>', methods=['POST'])
+def end_game(player_id):
+    """
+    Handle end-of-game logic including awarding completion bonus,
+    updating player score, and generating appropriate response.
+    """
+    logger.info(f"Processing end of game for player {player_id}")
+    
+    try:
+        # Get current player data
+        player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+        if player_response.status_code != 200:
+            return jsonify({"error": "Player not found"}), 404
+            
+        player_data = player_response.json()
+        current_score = player_data.get("sum_score", 0)
+        completion_bonus = 100  # Bonus for completing the game
+        
+        # Update player's score with completion bonus
+        try:
+            update_score_url = f"{PLAYER_SERVICE_URL}/player/{player_id}/score"
+            score_payload = {"points": completion_bonus}
+            score_response = requests.patch(update_score_url, json=score_payload, timeout=5)
+            
+            if score_response.status_code == 200:
+                new_score = score_response.json().get("new_sum_score", current_score + completion_bonus)
+                score_message = f"FINAL SCORE: {new_score} (includes +{completion_bonus} completion bonus!)"
+                
+                # Log this achievement
+                send_activity_log(player_id, f"Completed the game! (+{completion_bonus} score)")
+                logger.info(f"Player {player_id} completed the game with final score {new_score}")
+            else:
+                logger.warning(f"Failed to award completion bonus: {score_response.status_code}")
+                score_message = f"FINAL SCORE: {current_score}"
+        except Exception as e:
+            logger.error(f"Error updating score for game completion: {str(e)}")
+            score_message = f"FINAL SCORE: {current_score}"
+        
+        return jsonify({
+            "message": "Congratulations! You've completed the dungeon!",
+            "description": "You've reached the end of your journey and emerged victorious!",
+            "end_of_game": True,
+            "player_score": current_score + completion_bonus,
+            "score_message": score_message
+        })
+    except Exception as e:
+        logger.error(f"Error creating end of game response: {str(e)}")
+        return jsonify({
+            "message": "Congratulations! You've completed the dungeon!",
+            "description": "The game is over, but there was an error retrieving your final stats.",
+            "end_of_game": True,
+            "player_score": 0,
+            "score_message": "FINAL SCORE: 0"
+        }), 500
+
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5014, debug=True)

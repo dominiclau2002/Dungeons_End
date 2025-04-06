@@ -184,7 +184,7 @@ def attack():
                     # ✅ Update player's score for defeating the enemy
                     try:
                         update_score_url = f"{PLAYER_SERVICE_URL}/player/{player_id}/score"
-                        score_payload = {"points": 20}
+                        score_payload = {"points": 50}
                         score_response = requests.patch(update_score_url, json=score_payload)
 
                         if score_response.status_code != 200:
@@ -192,8 +192,8 @@ def attack():
                             combat_log.append("Victory registered, but score update failed.")
                         else:
                             logger.info(f"Score updated for player {player_id} after defeating {enemy_name}")
-                            log_activity(player_id, f"Defeated {enemy_name} (+20 score)")
-                            combat_log.append("You gained 20 points for defeating the enemy!")
+                            log_activity(player_id, f"Defeated {enemy_name} (+50 score)")
+                            combat_log.append("You gained 50 points for defeating the enemy!")
                     except Exception as e:
                         logger.error(f"Error while updating score after enemy defeat: {str(e)}")
                         combat_log.append("Could not update score due to server error.")

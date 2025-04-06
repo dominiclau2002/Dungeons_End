@@ -94,7 +94,8 @@ def login():
     try:
         # Try to find player by name
         player_search_response = requests.get(
-            f"{PLAYER_SERVICE_URL}/player/name/{player_name}"
+            f"{PLAYER_SERVICE_URL}/player/name/{player_name}",
+            timeout=5  # Add timeout to prevent long waits
         )
         
         if player_search_response.status_code == 200:
@@ -104,7 +105,7 @@ def login():
             player_id = player_data.get('PlayerID') or player_data.get('player_id')
             logger.info(f"Player '{player_name}' found, ID: {player_id}")
             
-                        # Reset game state for existing player
+            # Reset game state for existing player
             try:
                 requests.post(
                     f"{os.getenv('MANAGE_GAME_SERVICE_URL', 'http://manage_game_service:5014')}/game/full-reset/{player_id}",
@@ -120,39 +121,76 @@ def login():
         
         elif player_search_response.status_code == 404:
             # Player not found, create new player
-            new_player_response = requests.post(
-                f"{PLAYER_SERVICE_URL}/player",
-                json={"name": player_name, "character_class": character_class}
-            )
-            
-            if new_player_response.status_code == 201:
-                player_data = new_player_response.json()
-                # Log the full response for debugging
-                logger.debug(f"Player creation response: {player_data}")
-                
-                # The player ID is nested inside the "player" object
-                player_obj = player_data.get('player', {})
-                # Try both possible key names
-                player_id = player_obj.get('player_id') or player_obj.get('PlayerID')
-                
-                logger.info(f"New player '{player_name}' created, ID: {player_id}")
-                
-                if not player_id:
-                    logger.error(f"Failed to extract player ID from response: {player_data}")
-                    return jsonify({"error": "Failed to extract player ID from response"}), 500
-                    
-                session['player_id'] = player_id
-                session['player_name'] = player_name
-                return redirect(url_for('home'))
-            else:
-                logger.error(f"Failed to create new player: {new_player_response.text}")
-                return jsonify({"error": "Failed to create new player"}), 500
+            return create_new_player(player_name, character_class)
         else:
-            logger.error(f"Unexpected response from player service: {player_search_response.text}")
-            return jsonify({"error": "Failed to check player existence"}), 500
+            logger.error(f"Unexpected response from player service: {player_search_response.status_code} - {player_search_response.text}")
+            # Fall back to attempting to create a new player
+            return create_new_player(player_name, character_class)
+    
     except requests.RequestException as e:
         logger.error(f"Request error when calling player service: {str(e)}")
-        return jsonify({"error": "Failed to connect to player service"}), 500
+        # Fall back to attempting to create a new player
+        return create_new_player(player_name, character_class)
+
+def create_new_player(player_name, character_class):
+    """Helper function to create a new player."""
+    try:
+        logger.info(f"Attempting to create new player: {player_name}, class: {character_class}")
+        new_player_response = requests.post(
+            f"{PLAYER_SERVICE_URL}/player",
+            json={"name": player_name, "character_class": character_class},
+            timeout=5
+        )
+        
+        if new_player_response.status_code == 201:
+            player_data = new_player_response.json()
+            logger.debug(f"Player creation response: {player_data}")
+            
+            # The player ID is nested inside the "player" object
+            player_obj = player_data.get('player', {})
+            # Try both possible key names
+            player_id = player_obj.get('player_id') or player_obj.get('PlayerID')
+            
+            if not player_id:
+                logger.error(f"Failed to extract player ID from response: {player_data}")
+                return jsonify({"error": "Failed to extract player ID from response"}), 500
+            
+            logger.info(f"New player '{player_name}' created successfully, ID: {player_id}")
+            
+            session['player_id'] = player_id
+            session['player_name'] = player_name
+            return redirect(url_for('home'))
+        elif new_player_response.status_code == 409:
+            # Player name already exists - this can happen if the player was created between our check and creation
+            logger.warn(f"Player name '{player_name}' already exists, trying to retrieve existing player")
+            # Try to retrieve the existing player
+            try:
+                retry_response = requests.get(
+                    f"{PLAYER_SERVICE_URL}/player/name/{player_name}",
+                    timeout=5
+                )
+                if retry_response.status_code == 200:
+                    player_data = retry_response.json()
+                    player_id = player_data.get('PlayerID') or player_data.get('player_id')
+                    
+                    session['player_id'] = player_id
+                    session['player_name'] = player_name
+                    return redirect(url_for('home'))
+                else:
+                    logger.error(f"Failed to retrieve player after 409 conflict: {retry_response.text}")
+                    return jsonify({"error": "Player name already exists but could not retrieve player"}), 500
+            except Exception as e:
+                logger.error(f"Error retrieving player after 409 conflict: {str(e)}")
+                return jsonify({"error": f"Player name already exists but could not retrieve player: {str(e)}"}), 500
+        else:
+            logger.error(f"Failed to create new player: {new_player_response.status_code} - {new_player_response.text}")
+            return jsonify({"error": f"Failed to create new player: {new_player_response.text}"}), 500
+    except requests.RequestException as e:
+        logger.error(f"Request error when creating new player: {str(e)}")
+        return jsonify({"error": f"Failed to connect to player service: {str(e)}"}), 500
+    except Exception as e:
+        logger.error(f"Unexpected error creating new player: {str(e)}")
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
 
 @app.route("/logout", methods=["GET"])
 def logout():
@@ -322,26 +360,36 @@ def enter_room():
         return jsonify({"error": "Failed to connect to room service"}), 500
 
 
-def create_end_of_game_response(player_id):
-    """Creates a custom response for end of game."""
-    # Get player data for personalization
+def create_end_of_game_response(player_id, message="Congratulations! You've completed the game!"):
+    """
+    Creates a response for when the game is finished
+    """
     try:
-        player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
-        player_data = player_response.json() if player_response.status_code == 200 else {}
+        # Call the manage_game service to handle end-of-game logic
+        response = requests.post(
+            f"{os.getenv('MANAGE_GAME_SERVICE_URL', 'http://manage_game_service:5014')}/game/end/{player_id}",
+            json={"message": message},
+            timeout=5
+        )
         
-        player_name = player_data.get("Name", player_data.get("name", "Adventurer"))
-        
-        return jsonify({
-            "end_of_game": True,
-            "message": f"Congratulations, {player_name}! You have completed the dungeon!",
-            "description": "You stand before the exit of the dungeon, treasures in hand and tales to tell. The light of the outside world beckons you. Your adventure has come to a successful end."
-        }), 200
+        if response.status_code == 200:
+            response_data = response.json()
+            return jsonify(response_data), 200
+        else:
+            logger.error(f"Failed to process end of game: {response.status_code}")
+            return jsonify({
+                "message": message,
+                "player_score": 0,
+                "score_message": "Unable to retrieve score",
+                "error": "Failed to process end of game"
+            }), 200
     except Exception as e:
-        logger.error(f"Error creating end game response: {str(e)}")
+        logger.error(f"Error in end of game: {str(e)}")
         return jsonify({
-            "end_of_game": True,
-            "message": "Congratulations! You have completed the dungeon!",
-            "description": "Your adventure has come to a successful end."
+            "message": message,
+            "player_score": 0,
+            "score_message": "Unable to retrieve score",
+            "error": str(e)
         }), 200
 
 
@@ -443,35 +491,38 @@ def fetch_item_details():
 
 
 @app.route("/fetch_item_details_batch", methods=["POST"])
-def fetch_item_details_batch():
-    """Fetches details for multiple items at once."""
+def fetch_item_details_batch_endpoint():
+    """Endpoint for fetching details for multiple items at once."""
     data = request.get_json()
     item_ids = data.get('item_ids', [])
-
+    
     if not item_ids:
         return jsonify({"error": "Item IDs are required"}), 400
-
-    items = []
-    for item_id in item_ids:
-        # Call the item service to get item details
-        item_url = f"{ITEM_SERVICE_URL}/item/{item_id}"
-        logger.debug(f"Fetching item details from: {item_url}")
-
-        response = requests.get(item_url)
-        logger.debug(
-            f"Item service response: {response.status_code} - {response.text}")
-
-        if response.status_code == 200:
-            items.append(response.json())
-        else:
-            # Include a placeholder for failed items
-            items.append({
-                "ItemID": item_id,
-                "Name": "Unknown Item",
-                "Description": "Item details unavailable"
-            })
-
+    
+    items = fetch_item_details_batch(item_ids)
     return jsonify({"items": items})
+
+def fetch_item_details_batch(item_ids):
+    """
+    Helper function to fetch details for a batch of items.
+    Can be called directly by other functions.
+    """
+    try:
+        # Call the open_inventory service batch endpoint
+        response = requests.post(
+            f"{OPEN_INVENTORY_SERVICE_URL}/items/batch",
+            json={"item_ids": item_ids},
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            return response.json().get("items", [])
+        else:
+            logger.error(f"Failed to fetch item details: {response.status_code}")
+            return []
+    except Exception as e:
+        logger.error(f"Error fetching item details: {str(e)}")
+        return []
 
 
 @app.route("/room_info/<int:room_id>", methods=["GET"])
@@ -781,6 +832,37 @@ def hard_reset():
             "message": f"Hard reset failed: {str(e)}",
             "details": reset_results
         }), 500
+
+
+@app.route('/player_activity_logs', methods=['GET'])
+@app.route('/player_activity_logs/<int:player_id>', methods=['GET'])
+def player_activity_logs(player_id=None):
+    """
+    Display player activity logs
+    """
+    # If player_id is not provided in URL, get it from session
+    if not player_id:
+        player_id = get_current_player_id()
+        
+    if not player_id:
+        return jsonify({"error": "Player ID is required"}), 400
+    
+    try:
+        # Call activity log service directly
+        response = requests.get(
+            f"{ACTIVITY_LOG_SERVICE_URL}/log/{player_id}",
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            logs = response.json()
+            return jsonify({"logs": logs}), 200
+        else:
+            logger.error(f"Failed to retrieve activity logs: {response.status_code}")
+            return jsonify({"error": "Failed to retrieve activity logs"}), response.status_code
+    except Exception as e:
+        logger.error(f"Error retrieving activity logs: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

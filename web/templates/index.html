@@ -210,13 +210,25 @@
       }
       
       .success-message {
-        color: var(--forest-green);
+        color: #4caf50;
         font-weight: bold;
       }
       
       .error-message {
         color: #ff4c4c;
         font-weight: bold;
+      }
+      
+      .score-message {
+        color: #8B0000; /* Dark red instead of gold - more visible on beige */
+        font-weight: bold;
+        animation: scoreEffect 1s ease-in-out;
+      }
+      
+      @keyframes scoreEffect {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
       }
 
       /* Panel Styles */
@@ -893,21 +905,9 @@
             
             logMessage(`You picked up the ${itemName}!`, "success-message");
             
-            // Check if attack was increased (for item ID 1)
-            if (response.attack_increased) {
-              const weaponName = response.item_name || itemName;
-              logMessage(`The ${weaponName} increases your attack power to ${response.new_attack}!`, "success-message");
-              
-              // Update player damage variable for combat
-              playerDamage = response.new_attack;
-              
-              // Update stats panel if it's open
-              if ($("#stats-panel").is(":visible")) {
-                togglePlayerStats();
-                setTimeout(togglePlayerStats, 100);
-              }
-            }
-
+            // Show score message for item pickup
+            logMessage(`You gained 10 points for collecting the item!`, "score-message");
+            
             // Remove the button since the item is now picked up
             $(buttonElement).remove();
 
@@ -1193,7 +1193,7 @@
             // Set the current turn
             currentTurn = response.turn;
             
-            // Check if combat is over
+            // Check if enemy defeated
             if (response.is_combat_over) {
               const winner = response.winner;
               
@@ -1201,6 +1201,12 @@
               if (winner === "player") {
                 // Add victory message to game log
                 logMessage(`You have defeated the ${currentEnemy.name}!`, "success-message");
+                
+                // Show score message if present in combat log
+                const scoreMessage = response.combat_log.find(msg => msg.includes("+50"));
+                if (scoreMessage) {
+                  logMessage(scoreMessage, "score-message");
+                }
                 
                 // Player wins - experience, loot, etc. handled by the backend
                 endCombat();
@@ -1257,8 +1263,22 @@
         `);
         
         logMessage(`Your adventure has come to a tragic end at the hands of ${enemyName}.`, "error-message");
-        logMessage("Click RESET GAME to try again.", "error-message");
-        logMessage("------------------------------");
+        
+        // Get and display player's final score
+        $.ajax({
+          url: `/player_stats?player_id=${playerId}`,
+          type: "GET",
+          success: function(response) {
+            logMessage(`FINAL SCORE: ${response.sum_score || 0}`, "score-message");
+            logMessage("Click RESET GAME to try again.", "error-message");
+            logMessage("------------------------------");
+          },
+          error: function() {
+            logMessage("FINAL SCORE: 0", "score-message");
+            logMessage("Click RESET GAME to try again.", "error-message");
+            logMessage("------------------------------");
+          }
+        });
         
         // Scroll to see the Game Over message
         $("#game-log").scrollTop($("#game-log")[0].scrollHeight);
@@ -1334,6 +1354,11 @@
               // Display description if available
               if (response.description) {
                 logMessage(response.description);
+              }
+              
+              // Display player score if available
+              if (response.score_message) {
+                logMessage(response.score_message, "score-message");
               }
               
               // Display victory banner
@@ -1449,6 +1474,11 @@
               // Display description if available
               if (response.description) {
                 logMessage(response.description);
+              }
+              
+              // Display player score if available
+              if (response.score_message) {
+                logMessage(response.score_message, "score-message");
               }
               
               // Display victory banner
@@ -2061,14 +2091,71 @@ function hardResetGame() {
 
 // Function to open the RabbitMQ Management UI in a new tab/window
 function openActivityLogs() {
-  // Open RabbitMQ Management UI at the activity_log_queue page
-  const activityLogUrl = "http://localhost:5013/";
-  window.open(activityLogUrl, '_blank');
+  // Show the activity logs modal and load logs
+  document.getElementById('activity-logs-modal').style.display = 'flex';
+  loadActivityLogs();
   
-  // Show a tooltip or message to help user log in
+  // Show a tooltip or message
   logMessage("------------------------------");
   logMessage("Viewing activity logs...", "item");
   logMessage("------------------------------");
+}
+
+// Function to close the activity logs modal
+function closeLogsModal() {
+  document.getElementById('activity-logs-modal').style.display = 'none';
+}
+
+// Function to load activity logs
+function loadActivityLogs() {
+  const logsTableBody = document.getElementById('logs-table-body');
+  logsTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center; padding: 10px;">Loading logs...</td></tr>';
+  
+  // We have two options here:
+  // 1. Use the playerId from the global variable
+  // 2. Use the /player_activity_logs endpoint without a player_id parameter (it will get the ID from session)
+  // Let's use option 1 for clarity
+  
+  $.ajax({
+    url: `/player_activity_logs/${playerId}`,
+    type: "GET",
+    success: function(response) {
+      logsTableBody.innerHTML = '';
+      
+      const logs = response.logs || [];
+      
+      if (logs.length === 0) {
+        logsTableBody.innerHTML = '<tr><td colspan="2" style="text-align: center; padding: 10px;">No logs found</td></tr>';
+        return;
+      }
+      
+      // Sort logs by timestamp (newest first)
+      logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
+      logs.forEach(log => {
+        const row = document.createElement('tr');
+        
+        // Format the timestamp to be more readable
+        const date = new Date(log.timestamp);
+        const formattedDate = date.toLocaleString();
+        
+        row.innerHTML = `
+          <td style="border: 1px solid #ddd; padding: 8px;">${log.action}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${formattedDate}</td>
+        `;
+        logsTableBody.appendChild(row);
+      });
+    },
+    error: function(xhr) {
+      let errorMsg = "Failed to retrieve logs";
+      try {
+        errorMsg = JSON.parse(xhr.responseText).error || errorMsg;
+      } catch (e) {}
+      
+      logsTableBody.innerHTML = `<tr><td colspan="2" style="text-align: center; color: red; padding: 10px;">${errorMsg}</td></tr>`;
+      console.error("Error loading logs:", xhr.responseText);
+    }
+  });
 }
     </script>
 
@@ -2079,6 +2166,30 @@ function openActivityLogs() {
     <div class="modal-buttons">
       <button id="modal-confirm" onclick="confirmAction()">CONFIRM</button>
       <button id="modal-cancel" onclick="closeModal()">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<!-- Activity Logs Modal -->
+<div id="activity-logs-modal" class="modal-overlay">
+  <div class="modal-content" style="max-width: 600px; width: 90%; max-height: 80vh;">
+    <div class="modal-title" style="color: #4169e1;">ACTIVITY LOGS</div>
+    <div id="activity-logs-container" style="max-height: 50vh; overflow-y: auto; margin: 10px 0;">
+      <table class="log-table" style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2;">Action</th>
+            <th style="border: 1px solid #ddd; padding: 8px; background-color: #f2f2f2;">Timestamp</th>
+          </tr>
+        </thead>
+        <tbody id="logs-table-body">
+          <tr><td colspan="2" style="text-align: center; padding: 10px;">Loading logs...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="modal-buttons">
+      <button id="logs-refresh" onclick="loadActivityLogs()">REFRESH</button>
+      <button id="logs-close" onclick="closeLogsModal()">CLOSE</button>
     </div>
   </div>
 </div>

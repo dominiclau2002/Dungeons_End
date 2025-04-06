@@ -296,19 +296,6 @@ services:
       - score_service
       - rabbitmq  # Added dependency
 
-  select_character_service:
-    build:
-      context: .
-      dockerfile: composite_services/select_character/Dockerfile
-    restart: always
-    environment:
-      PLAYER_SERVICE_URL: http://player_service:5000
-      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
-    ports:
-      - "5017:5017"
-    depends_on:
-      - player_service
-      - rabbitmq  # Added dependency
 
   web_app:
     build:

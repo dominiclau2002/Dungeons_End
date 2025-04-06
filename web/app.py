@@ -561,65 +561,7 @@ def combat_attack():
         logger.error(f"Error connecting to combat service: {str(e)}")
         return jsonify({"error": f"Failed to connect to combat service: {str(e)}"}), 500
 
-@app.route("/reset_game", methods=["POST"])
-def reset_game():
-    """Reset the player's progress by setting them back to room 0."""
-    player_id = get_current_player_id()
-    
-    logger.debug(f"POST /reset_game - Calling full game reset for player {player_id}")
-    
-    try:
-        # Call the manage_game service for a full reset
-        response = requests.post(
-            f"{MANAGE_GAME_SERVICE_URL}/game/full-reset/{player_id}",
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            logger.info(f"Game successfully reset for player {player_id}")
-            
-            # Call enter_room to properly initialize the starting room for display
-            # We directly call the enter_room endpoint with target_room_id=0
-            enter_room_response = requests.post(
-                f"{ENTERING_ROOM_SERVICE_URL}/room/0",
-                json={"player_id": player_id}
-            )
-            
-            if enter_room_response.status_code == 200:
-                room_data = enter_room_response.json()
-                return jsonify({
-                    "success": True,
-                    "message": "Game has been reset successfully.",
-                    "end_of_game": False,
-                    **room_data
-                })
-            else:
-                logger.error(f"Failed to enter starting room after reset: {enter_room_response.text}")
-                return jsonify({
-                    "success": True,
-                    "message": "Game has been reset, but failed to load starting room. Please refresh.",
-                    "error_details": enter_room_response.text
-                })
-        else:
-            logger.error(f"Failed to reset game: {response.text}")
-            try:
-                error_details = response.json()
-                return jsonify({
-                    "success": False,
-                    "message": "Failed to reset game.",
-                    "error_details": error_details
-                }), 500
-            except:
-                return jsonify({
-                    "success": False,
-                    "message": "Failed to reset game. Unknown error from reset service."
-                }), 500
-    except requests.RequestException as e:
-        logger.error(f"Error connecting to manage_game service: {str(e)}")
-        return jsonify({
-            "success": False,
-            "message": f"Failed to connect to game management service: {str(e)}"
-        }), 500
+
         
 @app.route("/hard_reset", methods=["POST"])
 def hard_reset():

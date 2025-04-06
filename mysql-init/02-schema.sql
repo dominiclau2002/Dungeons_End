@@ -30,6 +30,7 @@ CREATE TABLE Item (
     Name VARCHAR(50) UNIQUE NOT NULL,
     Description VARCHAR(200) NOT NULL,
     HasEffect BOOLEAN DEFAULT FALSE NOT NULL,
+    Effect ENUM('attack', 'health') DEFAULT NULL,
     Points INT DEFAULT 0 NOT NULL
 );
 
@@ -74,13 +75,13 @@ CREATE TABLE Room (
 
 -- ✅ Sample Data for Items
 USE item_db;
-INSERT INTO Item (Name, Description, HasEffect, Points) VALUES
-('Golden Sword', 'A shiny golden sword with high damage', TRUE, 100),
-('Leather Armor', 'Basic protective armor', FALSE, 50),
-('Small Shield', 'A small wooden shield', FALSE, 30),
-('Seaweed', 'Smells like seaweed', FALSE, 10),
-('Lockpick', 'Unlocks most doors', FALSE, 75),
-('Magic Amulet', 'Grants resistance to magic', FALSE, 150);
+INSERT INTO Item (Name, Description, HasEffect, Effect, Points) VALUES
+('Golden Sword', 'A shiny golden sword with high damage', TRUE, 'attack', 100),
+('Leather Armor', 'Basic protective armor', FALSE, NULL, 50),
+('Small Shield', 'A small wooden shield', FALSE, NULL, 30),
+('Seaweed', 'Smells like seaweed', FALSE, NULL, 10),
+('Lockpick', 'Unlocks most doors', FALSE, NULL, 75),
+('Magic Amulet', 'Grants resistance to magic', TRUE, 'health', 150);
 
 -- Insert data into Enemy table
 USE enemy_db; 

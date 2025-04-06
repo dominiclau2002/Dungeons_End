@@ -38,12 +38,20 @@ def create_item():
         return jsonify({
             "error": "Item with this name already exists"
         }), 409
+        
+    # Validate effect if provided
+    effect = data.get("effect")
+    if effect and effect not in ['attack', 'health']:
+        return jsonify({
+            "error": "Effect must be either 'attack' or 'health'"
+        }), 400
 
     new_item = Item(
         Name=data["name"],
         Description=data["description"],
         Points=data.get("points", 0),
-        HasEffect=data.get("has_effect", False)
+        HasEffect=data.get("has_effect", False),
+        Effect=effect
     )
 
     db.session.add(new_item)
@@ -104,6 +112,12 @@ def update_item(item_id):
         item.Points = data["points"]
     if "has_effect" in data:
         item.HasEffect = data["has_effect"]
+    if "effect" in data:
+        if data["effect"] not in ['attack', 'health', None]:
+            return jsonify({
+                "error": "Effect must be either 'attack', 'health', or null"
+            }), 400
+        item.Effect = data["effect"]
 
     db.session.commit()
 

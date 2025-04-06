@@ -250,7 +250,6 @@ def end_game(player_id):
 def hard_reset(player_id):
     """
     Performs a complete hard reset of the player's game state.
-    This is more thorough than the regular reset and is intended for debugging.
     """
     logger.info(f"Performing HARD RESET for player {player_id}")
     

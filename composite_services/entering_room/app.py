@@ -250,6 +250,25 @@ def enter_room(room_id):
     else:
         logger.debug(f"Successfully updated player location to room {room_id}")
 
+    # ✅ Add score for entering room (+5)
+    try:
+        score_update_url = f"{PLAYER_SERVICE_URL}/player/{player_id}/score"
+        score_payload = {"points": 5}
+        score_response = requests.patch(score_update_url, json=score_payload)
+
+        if score_response.status_code != 200:
+            logger.warning(f"Score update failed: {score_response.status_code} - {score_response.text}")
+        else:
+            logger.debug(f"Score updated successfully for player {player_id} (entered room)")
+            # ✅ Log room entry and score together (combine)
+            room_name = "Unknown"
+            if isinstance(room, dict):
+                room_name = room.get('name') or room.get('Name') or f"Room {room_id}"
+            log_activity(player_id, f"Entered {room_name} (+5 score)")
+
+    except Exception as e:
+        logger.error(f"Error updating score on room entry: {str(e)}")
+
     # ✅ Log room entry via RabbitMQ
     room_name = room.get('name') or room.get('Name') or f"Room {room_id}"
     log_activity(player_id, f"Entered Room {room_id}: {room_name}")

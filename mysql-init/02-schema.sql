@@ -7,7 +7,8 @@ CREATE TABLE Player (
     MaxHealth INT NOT NULL DEFAULT 100,
     CurrentHealth INT NOT NULL DEFAULT 100,
     Damage INT NOT NULL DEFAULT 10,
-    RoomID INT DEFAULT 0
+    RoomID INT DEFAULT 0,
+    sum_score INT DEFAULT 0
 );
 
 -- ✅ Use `enemy_db`

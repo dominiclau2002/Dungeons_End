@@ -6,6 +6,8 @@ from datetime import datetime
 import time
 from composite_services.utilities.activity_logger import log_activity
 
+PLAYER_SERVICE_URL = os.getenv("PLAYER_SERVICE_URL", "http://player_service:5000")
+
 
 app = Flask(__name__)
 
@@ -156,6 +158,21 @@ def pick_up_item(room_id, item_id):
         return jsonify({"error": "Failed to add item to inventory"}), 500
 
     logger.debug("Item successfully added to inventory")
+
+    # Step 5.5: Update player score for picking up item (+10)
+    try:
+        update_score_url = f"{PLAYER_SERVICE_URL}/player/{player_id}/score"
+        score_payload = {"points": 10}
+        score_response = requests.patch(update_score_url, json=score_payload)
+        
+        if score_response.status_code != 200:
+            logger.warning(f"Score update failed: {score_response.status_code} - {score_response.text}")
+        else:
+            logger.debug(f"Score updated successfully for player {player_id}")
+            log_activity(player_id, f"Picked up {item_name} from room {room_id} (+10 score)")
+    except Exception as e:
+        logger.error(f"Error while updating score: {str(e)}")
+
 
     # Step 6: Log the activity via activity log service
     log_message = f"Picked up {item_name} (ID: {item_id}) from room {room_id}"

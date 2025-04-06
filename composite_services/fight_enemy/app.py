@@ -180,6 +180,24 @@ def attack():
                     is_combat_over = True
                     winner = "player"
                     combat_log.append(f"You defeated the {enemy_name}!")
+
+                    # ✅ Update player's score for defeating the enemy
+                    try:
+                        update_score_url = f"{PLAYER_SERVICE_URL}/player/{player_id}/score"
+                        score_payload = {"points": 20}
+                        score_response = requests.patch(update_score_url, json=score_payload)
+
+                        if score_response.status_code != 200:
+                            logger.warning(f"Score update failed after enemy defeat: {score_response.status_code} - {score_response.text}")
+                            combat_log.append("Victory registered, but score update failed.")
+                        else:
+                            logger.info(f"Score updated for player {player_id} after defeating {enemy_name}")
+                            log_activity(player_id, f"Defeated {enemy_name} (+20 score)")
+                            combat_log.append("You gained 20 points for defeating the enemy!")
+                    except Exception as e:
+                        logger.error(f"Error while updating score after enemy defeat: {str(e)}")
+                        combat_log.append("Could not update score due to server error.")
+
                     
                     # Also update player's current health to preserve it
                     try:

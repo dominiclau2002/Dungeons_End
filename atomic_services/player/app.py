@@ -179,6 +179,28 @@ def get_player_by_name(player_name):
 
     return jsonify(player.to_dict()), 200
 
+# ✅ Patch sum_score for player
+@app.route('/player/<int:player_id>/score', methods=['PATCH'])
+def update_player_score(player_id):
+    data = request.get_json()
+    points = data.get("points", 0)
+
+    if points == 0:
+        return jsonify({"error": "No points provided"}), 400
+
+    player = Player.query.get(player_id)
+    if not player:
+        return jsonify({"error": "Player not found"}), 404
+
+    player.sum_score += points
+    db.session.commit()
+
+    return jsonify({
+        "message": f"Score updated by {points}",
+        "new_sum_score": player.sum_score
+    }), 200
+
+
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()

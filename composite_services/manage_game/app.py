@@ -15,8 +15,11 @@ logger = logging.getLogger(__name__)
 PLAYER_SERVICE_URL = os.getenv("PLAYER_SERVICE_URL", "http://player_service:5000")
 INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:5001")
 ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5016")
+PLAYER_ROOM_INTERACTION_SERVICE_URL = os.getenv("PLAYER_ROOM_INTERACTION_SERVICE_URL", "http://player_room_interaction_service:5040")
+ENEMY_SERVICE_URL = os.getenv("ENEMY_SERVICE_URL", "http://enemy_service:5005")
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 ACTIVITY_LOG_QUEUE = "activity_log_queue"
+
 
 def send_activity_log(player_id, action):
     try:
@@ -56,7 +59,7 @@ def reset_character_progress(player_id):
     
     # ✅ Reset player progress - restore full health and set room to 0
     requests.put(f"{PLAYER_SERVICE_URL}/player/{player_id}", 
-                 json={"current_health": max_health, "room_id": 0})
+                 json={"current_health": max_health, "room_id": 0, "sum_score":0})
 
     # ✅ Reset all enemies
     requests.get(f"{ENEMY_SERVICE_URL}/reset")
@@ -97,7 +100,7 @@ def full_game_reset(player_id):
         try:
             player_reset = requests.put(
                 f"{PLAYER_SERVICE_URL}/player/{player_id}", 
-                json={"current_health": max_health, "max_health": max_health, "damage": 10, "room_id": 0},
+                json={"current_health": max_health, "max_health": max_health, "damage": 10, "room_id": 0,"sum_score": 0},
                 timeout=5
             )
             if player_reset.status_code == 200:
@@ -125,6 +128,23 @@ def full_game_reset(player_id):
         except Exception as e:
             logger.error(f"Error clearing inventory: {str(e)}")
             reset_results["errors"].append(f"Inventory reset error: {str(e)}")
+            
+        # Step 3.5: Reset player room interaction history
+        try:
+            logger.debug(f"Clearing player interaction history for player {player_id}")
+            player_interaction_reset = requests.post(
+                f"{PLAYER_ROOM_INTERACTION_SERVICE_URL}/player/{player_id}/reset",
+                timeout=5
+            )
+            
+            if player_interaction_reset.status_code == 200:
+                logger.debug("Successfully cleared player interaction history")
+            else:
+                logger.error(f"Failed to clear player interaction history: {player_interaction_reset.status_code}")
+                reset_results["errors"].append(f"Player interaction reset failed: {player_interaction_reset.text}")
+        except Exception as e:
+            logger.error(f"Error clearing player interaction history: {str(e)}")
+            reset_results["errors"].append(f"Player interaction reset error: {str(e)}")
         
         # Step 4: Reset rooms - restore default items and enemies
         # This is a simplified approach - a more robust solution would

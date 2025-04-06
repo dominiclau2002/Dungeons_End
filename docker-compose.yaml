@@ -89,16 +89,6 @@ services:
       mysql:
         condition: service_healthy
 
-  # character_service:
-  #   build: ./atomic_services/character
-  #   restart: always
-  #   environment:
-  #     DATABASE_URL: mysql+mysqlconnector://user:password@mysql/character_db
-  #   ports:
-  #     - "5003:5003"
-  #   depends_on:
-  #     - mysql
-
   enemy_service:
     build: ./atomic_services/enemy
     restart: always
@@ -132,7 +122,6 @@ services:
       mysql:
         condition: service_healthy
 
-
   score_service:
     build: ./atomic_services/score
     restart: always
@@ -149,6 +138,7 @@ services:
     restart: always
     environment:
       DATABASE_URL: mysql+mysqlconnector://user:password@mysql/activity_log_db
+      RABBITMQ_HOST: rabbitmq
     ports:
       - "5013:5013"
     depends_on:
@@ -157,7 +147,7 @@ services:
       rabbitmq:
         condition: service_started
 
-  # Example updates for docker-compose.yaml
+  # Composite services with RABBITMQ_HOST added
 
   fight_enemy_service:
     build:
@@ -172,7 +162,7 @@ services:
       ROOM_SERVICE_URL: http://room_service:5016
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
       PLAYER_ROOM_INTERACTION_SERVICE_URL: http://player_room_interaction_service:5040
-      # RABBITMQ_HOST: rabbitmq  # This line should be removed
+      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
     ports:
       - "5009:5009"
     depends_on:
@@ -182,6 +172,7 @@ services:
       - score_service
       - room_service
       - player_room_interaction_service
+      - rabbitmq  # Added dependency
 
   entering_room_service:
     build:
@@ -197,7 +188,7 @@ services:
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
       INVENTORY_SERVICE_URL: http://inventory_service:5001
       PLAYER_ROOM_INTERACTION_SERVICE_URL: http://player_room_interaction_service:5040
-      # RABBITMQ_HOST: rabbitmq  # This line should be removed
+      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
     ports:
       - "5011:5011"
     depends_on:
@@ -208,6 +199,7 @@ services:
       - activity_log_service
       - room_service
       - player_room_interaction_service
+      - rabbitmq  # Added dependency
 
   manage_game_service:
     build:
@@ -217,14 +209,17 @@ services:
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
       ENEMY_SERVICE_URL: http://enemy_service:5005
+      INVENTORY_SERVICE_URL: http://inventory_service:5001
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
-
+      PLAYER_ROOM_INTERACTION_SERVICE_URL: http://player_room_interaction_service:5040
+      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
     ports:
       - "5014:5014"
     depends_on:
       - player_service
       - enemy_service
       - activity_log_service
+      - rabbitmq  # Added dependency
 
   open_inventory_service:
     build:
@@ -235,13 +230,14 @@ services:
       INVENTORY_SERVICE_URL: http://inventory_service:5001
       ITEM_SERVICE_URL: http://item_service:5002
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
- 
+      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
     ports:
       - "5010:5010"
     depends_on:
       - inventory_service
       - item_service
       - activity_log_service
+      - rabbitmq  # Added dependency
 
   pick_up_item_service:
     build:
@@ -255,7 +251,7 @@ services:
       APPLY_ITEM_EFFECTS_SERVICE_URL: http://apply_item_effects_service:5025
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
       PLAYER_ROOM_INTERACTION_SERVICE_URL: http://player_room_interaction_service:5040
-      # RABBITMQ_HOST: rabbitmq  # This line should be removed
+      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
     ports:
       - "5019:5019"
     depends_on:
@@ -265,6 +261,7 @@ services:
       - apply_item_effects_service
       - activity_log_service
       - player_room_interaction_service
+      - rabbitmq  # Added dependency
 
   apply_item_effects_service:
     build:
@@ -275,13 +272,14 @@ services:
       PLAYER_SERVICE_URL: http://player_service:5000
       ITEM_SERVICE_URL: http://item_service:5002
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
-   
+      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
     ports:
       - "5025:5025"
     depends_on:
       - player_service
       - item_service
       - activity_log_service
+      - rabbitmq  # Added dependency
 
   calculate_score_service:
     build:
@@ -291,19 +289,27 @@ services:
     environment:
       SCORE_SERVICE_URL: http://score_service:5008
       ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
+      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
     ports:
       - "5015:5015"
     depends_on:
       - score_service
-  # select_character_service:
-  #   build: ./composite_services/select_character
-  #   restart: always
-  #   environment:
-  #     PLAYER_SERVICE_URL: http://player_service:5000
-  #   ports:
-  #     - "5017:5017"
-  #   depends_on:
-  #     - player_service
+      - rabbitmq  # Added dependency
+
+  select_character_service:
+    build:
+      context: .
+      dockerfile: composite_services/select_character/Dockerfile
+    restart: always
+    environment:
+      PLAYER_SERVICE_URL: http://player_service:5000
+      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
+    ports:
+      - "5017:5017"
+    depends_on:
+      - player_service
+      - rabbitmq  # Added dependency
+
   web_app:
     build:
       context: .
@@ -311,6 +317,8 @@ services:
     restart: always
     ports:
       - "5050:5050"
+    volumes:
+      - ./web/static:/app/web/static 
     environment:
       PLAYER_SERVICE_URL: http://player_service:5000
       ENTERING_ROOM_SERVICE_URL: http://entering_room_service:5011
@@ -320,6 +328,7 @@ services:
       ROOM_SERVICE_URL: http://room_service:5016
       ITEM_SERVICE_URL: http://item_service:5002
       PLAYER_ROOM_INTERACTION_SERVICE_URL: http://player_room_interaction_service:5040
+      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
     depends_on:
       - player_service
       - entering_room_service
@@ -329,3 +338,4 @@ services:
       - room_service
       - item_service
       - player_room_interaction_service
+      - rabbitmq  # Added dependency

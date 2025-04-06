@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pixel Dungeon Adventure</title>
+    <title>Dungeon's End</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap">
     <style>
@@ -144,6 +144,16 @@
       
       #stats-button {
         background-color: var(--forest-green);
+      }
+
+      #hard-reset-button {
+        background-color: #ff4500;
+        color: white;
+      }
+  
+      #rabbitmq-button {
+        background-color: #4169e1;
+        color: white;
       }
       
       /* Text colors */
@@ -531,11 +541,50 @@
         margin-left: 10px;
         color: var(--forest-green);
       }
+
+      /* Modal Overlays */
+      /* Add a modal overlay for confirmation dialogs */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+      }
+      
+      .modal-content {
+        background-color: var(--parchment);
+        border: 8px solid var(--wood-dark);
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        padding: 20px;
+        text-align: center;
+        max-width: 400px;
+        width: 80%;
+      }
+      
+      .modal-title {
+        font-family: 'Press Start 2P', cursive;
+        font-size: 18px;
+        color: var(--blood-red);
+        margin-bottom: 20px;
+      }
+      
+      .modal-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 20px;
+      }
     </style>
   </head>
   <body data-player-id="{{ player_id }}" data-player-name="{{ player_name }}">
     <div class="game-container" data-player-id="{{ player_id }}" data-player-name="{{ player_name }}">
-      <h1>PIXEL DUNGEON ADVENTURE</h1>
+      <h1>Dungeon's End</h1>
       <h2 class="player-name">Adventurer: <span id="player-name-display">{{ player_name }}</span></h2>
 
       <div class="game-layout">
@@ -552,7 +601,7 @@
         <div class="center-content">
     <div id="game-log">
       <p>
-              Welcome to the Pixel Dungeon Adventure! Click "Enter Next Room" to begin
+              Welcome to Dungeon's End! Click "Enter Next Room" to begin
         your journey.
       </p>
     </div>
@@ -583,6 +632,12 @@
             </button>
             <button id="logout-button" onclick="window.location.href='/logout'">
               LOGOUT
+            </button>
+            <button id="hard-reset-button" onclick="hardResetGame()" style="background-color: #ff4500;">
+              HARD RESET
+            </button>
+            <button id="activitylog-button" onclick="openActivityLogs()" style="background-color: #4169e1;">
+              ACTIVITY LOGS
             </button>
           </div>
         </div>
@@ -728,7 +783,7 @@
             $("#persistent-health-fill").css("width", healthRatio + "%");
             
             // Clear loading message
-            $("#game-log").html("<p>Welcome to the Pixel Dungeon Adventure! Click \"Enter Next Room\" to begin your journey.</p>");
+            $("#game-log").html("<p>Welcome to Dungeon's End! Click \"Enter Next Room\" to begin your journey.</p>");
             
             // Load the current room data
             refreshRoom();
@@ -752,7 +807,7 @@
             
             // Log warning and show error message
             console.warn("Using fallback values for player stats");
-            $("#game-log").html("<p>Welcome to the Pixel Dungeon Adventure! Click \"Enter Next Room\" to begin your journey.</p>");
+            $("#game-log").html("<p>Welcome to Dungeon's End! Click \"Enter Next Room\" to begin your journey.</p>");
             $("#game-log").append("<p class='error-message'>Could not load player stats. Using default values.</p>");
           }
         });
@@ -1560,6 +1615,7 @@
           }),
           success: function (response) {
             console.log("Reset game response:", response);
+            console.log("Reset game full response structure:", JSON.stringify(response));
             
             if (response.success) {
               // Clear the game log
@@ -1635,6 +1691,9 @@
                   logMessage("This room is empty.");
                 }
               } else {
+                console.log("Reset game full response:", response);
+                console.log("Room items after reset:", response.items);
+                console.log("Room enemies after reset:", response.enemies);
                 logMessage("You find yourself at the beginning of the dungeon. What dangers await?");
               }
               
@@ -1923,6 +1982,105 @@
           }
         });
       }
+
+      // Add these JavaScript functions to your existing script section
+
+// Variable to store callback function for confirmation modal
+let pendingConfirmationCallback = null;
+
+// Function to open the confirmation modal
+function showConfirmationModal(message, callback) {
+  document.getElementById('modal-message').textContent = message;
+  document.getElementById('confirmation-modal').style.display = 'flex';
+  pendingConfirmationCallback = callback;
+}
+
+// Function to close the confirmation modal
+function closeModal() {
+  document.getElementById('confirmation-modal').style.display = 'none';
+  pendingConfirmationCallback = null;
+}
+
+// Function to execute the confirmed action
+function confirmAction() {
+  if (pendingConfirmationCallback) {
+    pendingConfirmationCallback();
+  }
+  closeModal();
+}
+
+// Function to perform a hard reset of the game
+function hardResetGame() {
+  showConfirmationModal(
+    "This will completely reset your game progress. All items, room progress, and stats will be lost. Are you sure?",
+    function() {
+      // Show loading message in game log
+      logMessage("------------------------------");
+      logMessage("Performing HARD RESET...", "error-message");
+      
+      $.ajax({
+        url: "/hard_reset",
+        type: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({
+          player_id: playerId
+        }),
+        success: function(response) {
+          console.log("Hard reset response:", response);
+          
+          // Clear the game log
+          $("#game-log").html("");
+          
+          // Game reset successful - show opening message
+          logMessage("Game has been completely reset! Starting fresh adventure.", "success-message");
+          logMessage("------------------------------");
+          
+          // Force page refresh to ensure all state is clean
+          setTimeout(function() {
+            window.location.reload();
+          }, 1500);
+        },
+        error: function(xhr) {
+          console.error("Hard reset error:", xhr.responseText);
+          
+          let errorMsg = "Failed to hard reset the game";
+          try {
+            const errorResponse = JSON.parse(xhr.responseText);
+            errorMsg = errorResponse.message || errorResponse.error || errorMsg;
+          } catch (e) {
+            console.error("Error parsing hard reset error response:", e);
+          }
+          
+          logMessage(`Error: ${errorMsg}`, "error-message");
+          logMessage("Try refreshing the page or try again later.", "error-message");
+        }
+      });
+    }
+  );
+}
+
+// Function to open the RabbitMQ Management UI in a new tab/window
+function openActivityLogs() {
+  // Open RabbitMQ Management UI at the activity_log_queue page
+  const activityLogUrl = "http://localhost:5013/";
+  window.open(activityLogUrl, '_blank');
+  
+  // Show a tooltip or message to help user log in
+  logMessage("------------------------------");
+  logMessage("Viewing activity logs...", "item");
+  logMessage("------------------------------");
+}
     </script>
+
+<div id="confirmation-modal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-title">WARNING!</div>
+    <p id="modal-message">Are you sure you want to perform this action?</p>
+    <div class="modal-buttons">
+      <button id="modal-confirm" onclick="confirmAction()">CONFIRM</button>
+      <button id="modal-cancel" onclick="closeModal()">CANCEL</button>
+    </div>
+  </div>
+</div>
   </body>
 </html>

@@ -131,6 +131,9 @@ def update_player(player_id):
         player.Damage = data['damage']
     if "room_id" in data:
         player.RoomID = data['room_id']
+    if "sum_score" in data:
+        player.sum_score = data["sum_score"]
+
 
     db.session.commit()
 

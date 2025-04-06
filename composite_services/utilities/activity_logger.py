@@ -1,19 +1,21 @@
 # composite_services/utilities/activity_logger.py
-import requests
+import pika
 import logging
 import os
 from datetime import datetime
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Activity Log Service URL
-ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
+# RabbitMQ configuration
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
+ACTIVITY_LOG_QUEUE = "activity_log_queue"
 
 def log_activity(player_id, action):
     """
-    Logs player activity by making a REST API call to the activity_log_service.
+    Logs player activity by sending a message directly to RabbitMQ.
     
     Args:
         player_id (int): ID of the player performing the action
@@ -26,25 +28,39 @@ def log_activity(player_id, action):
         logger.error("Missing required parameters: player_id and action must be provided")
         return False
         
-    url = f"{ACTIVITY_LOG_SERVICE_URL}/api/log"
-    data = {
-        "player_id": player_id,
-        "action": action,
-        "timestamp": datetime.utcnow().isoformat()
-    }
-    
     try:
-        response = requests.post(url, json=data, timeout=5)
+        # Connect to RabbitMQ
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
+        channel = connection.channel()
         
-        if response.status_code == 201:
-            logger.debug(f"Activity logged successfully: Player {player_id} - {action}")
-            return True
-        else:
-            logger.error(f"Failed to log activity: {response.status_code} - {response.text}")
-            return False
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error connecting to activity log service: {str(e)}")
+        # Ensure the queue exists and is durable
+        channel.queue_declare(queue=ACTIVITY_LOG_QUEUE, durable=True)
+        
+        # Create the message payload
+        message = {
+            "player_id": player_id,
+            "action": action,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Publish the message to the queue
+        channel.basic_publish(
+            exchange='',
+            routing_key=ACTIVITY_LOG_QUEUE,
+            body=json.dumps(message),
+            properties=pika.BasicProperties(
+                delivery_mode=2  # Make message persistent
+            )
+        )
+        
+        # Close the connection
+        connection.close()
+        logger.debug(f"Activity logged successfully via RabbitMQ: Player {player_id} - {action}")
+        return True
+        
+    except pika.exceptions.AMQPConnectionError as e:
+        logger.error(f"Failed to connect to RabbitMQ: {str(e)}")
         return False
     except Exception as e:
-        logger.error(f"Unexpected error logging activity: {str(e)}")
+        logger.error(f"Unexpected error logging activity to RabbitMQ: {str(e)}")
         return False

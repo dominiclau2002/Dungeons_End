@@ -5,9 +5,13 @@ from datetime import datetime
 import logging
 from composite_services.utilities.activity_logger import log_activity
 import secrets
+import pika
+import json 
 
 
-app = Flask(__name__)
+
+
+app = Flask(__name__, static_folder="web/static", static_url_path="/static")
 app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(16))
 
 # Configure logging
@@ -32,6 +36,8 @@ COMBAT_SERVICE_URL = os.getenv(
 ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 PLAYER_ROOM_INTERACTION_SERVICE_URL = os.getenv(
     "PLAYER_ROOM_INTERACTION_SERVICE_URL", "http://player_room_interaction_service:5040")
+INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:5001")
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
 
 
 # def log_activity(player_id, action):
@@ -97,9 +103,21 @@ def login():
             # Extract player ID from response - check all possible key names
             player_id = player_data.get('PlayerID') or player_data.get('player_id')
             logger.info(f"Player '{player_name}' found, ID: {player_id}")
+            
+                        # Reset game state for existing player
+            try:
+                requests.post(
+                    f"{os.getenv('MANAGE_GAME_SERVICE_URL', 'http://manage_game_service:5014')}/game/full-reset/{player_id}",
+                    timeout=5
+                )
+                logger.info(f"Game reset for existing player {player_id} during login")
+            except Exception as e:
+                logger.error(f"Failed to reset game during login: {str(e)}")
+                
             session['player_id'] = player_id
             session['player_name'] = player_name
             return redirect(url_for('home'))
+        
         elif player_search_response.status_code == 404:
             # Player not found, create new player
             new_player_response = requests.post(
@@ -138,9 +156,25 @@ def login():
 
 @app.route("/logout", methods=["GET"])
 def logout():
-    """Logs out the current player."""
+    """Logs out the current player and resets their game state."""
+    player_id = session.get('player_id')
+    
+    # Reset game state if player_id exists
+    if player_id:
+        try:
+            # Call the manage_game_service to reset the game
+            requests.post(
+                f"{os.getenv('MANAGE_GAME_SERVICE_URL', 'http://manage_game_service:5014')}/game/full-reset/{player_id}",
+                timeout=5
+            )
+            logger.info(f"Game reset for player {player_id} during logout")
+        except Exception as e:
+            logger.error(f"Failed to reset game during logout: {str(e)}")
+    
+    # Clear session data
     session.pop('player_id', None)
     session.pop('player_name', None)
+    
     return redirect(url_for('login_page'))
 
 # Helper function to get current player ID
@@ -598,6 +632,154 @@ def reset_game():
         return jsonify({
             "success": False,
             "message": f"Failed to connect to game management service: {str(e)}"
+        }), 500
+        
+@app.route("/hard_reset", methods=["POST"])
+def hard_reset():
+    """
+    Performs a complete hard reset of the player's game state.
+    This is more thorough than the regular reset and is intended for debugging.
+    """
+    data = request.get_json()
+    player_id = data.get("player_id")
+    
+    if not player_id:
+        return jsonify({"error": "Player ID is required"}), 400
+        
+    logger.info(f"Performing HARD RESET for player {player_id}")
+    
+    reset_results = {
+        "player_reset": False,
+        "inventory_reset": False,
+        "interactions_reset": False,
+        "room_reset": False
+    }
+    
+    try:
+        # 1. Reset player stats and location
+        try:
+            # Get player data to find max health
+            player_response = requests.get(f"{PLAYER_SERVICE_URL}/player/{player_id}")
+            if player_response.status_code == 200:
+                player_data = player_response.json()
+                max_health = player_data.get("max_health", player_data.get("MaxHealth", 100))
+                
+                # Reset player to initial state
+                player_reset = requests.put(
+                    f"{PLAYER_SERVICE_URL}/player/{player_id}", 
+                    json={
+                        "current_health": max_health,
+                        "max_health": max_health,
+                        "damage": 10,
+                        "room_id": 0,
+                        "sum_score": 0  # Reset score to 0
+                    },
+                    timeout=5
+                )
+                
+                if player_reset.status_code == 200:
+                    reset_results["player_reset"] = True
+                    logger.info(f"Successfully reset player {player_id} stats and location")
+        except Exception as e:
+            logger.error(f"Error resetting player stats: {str(e)}")
+            
+        # 2. Clear player's inventory
+        try:
+            inventory_reset = requests.delete(
+                f"{INVENTORY_SERVICE_URL}/inventory/player/{player_id}",
+                timeout=5
+            )
+            if inventory_reset.status_code in [200, 404]:
+                reset_results["inventory_reset"] = True
+                logger.info(f"Successfully cleared inventory for player {player_id}")
+        except Exception as e:
+            logger.error(f"Error clearing inventory: {str(e)}")
+            
+        # 3. Reset player-room interactions
+        try:
+            interaction_reset = requests.post(
+                f"{PLAYER_ROOM_INTERACTION_SERVICE_URL}/player/{player_id}/reset",
+                timeout=5
+            )
+            if interaction_reset.status_code == 200:
+                reset_results["interactions_reset"] = True
+                logger.info(f"Successfully reset player-room interactions for player {player_id}")
+        except Exception as e:
+            logger.error(f"Error resetting player-room interactions: {str(e)}")
+            
+        # 4. Reset room states
+        try:
+            # Reset rooms to their default state
+            room_defaults = [
+                {"room_id": 1, "item_ids": [1, 2], "enemy_ids": [], "door_locked": False},
+                {"room_id": 2, "item_ids": [3, 5], "enemy_ids": [1], "door_locked": False},
+                {"room_id": 3, "item_ids": [4], "enemy_ids": [2], "door_locked": True}
+            ]
+            
+            room_reset_success = True
+            for room_data in room_defaults:
+                room_id = room_data.pop("room_id")  # Extract room_id from the data
+                room_reset = requests.put(
+                    f"{ROOM_SERVICE_URL}/room/{room_id}",
+                    json=room_data,
+                    timeout=5
+                )
+                if room_reset.status_code != 200:
+                    room_reset_success = False
+                    logger.error(f"Failed to reset room {room_id}")
+                    
+            if room_reset_success:
+                reset_results["room_reset"] = True
+                logger.info("Successfully reset all rooms to default state")
+        except Exception as e:
+            logger.error(f"Error resetting rooms: {str(e)}")
+            
+        # Send a hard reset log event via RabbitMQ
+        try:
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
+            channel = connection.channel()
+            channel.queue_declare(queue="activity_log_queue", durable=True)
+            
+            message = {
+                "player_id": player_id,
+                "action": "HARD RESET performed on game",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            channel.basic_publish(
+                exchange="",
+                routing_key="activity_log_queue",
+                body=json.dumps(message),
+                properties=pika.BasicProperties(delivery_mode=2)
+            )
+            
+            connection.close()
+            logger.info(f"Logged hard reset for player {player_id}")
+        except Exception as e:
+            logger.error(f"Failed to log hard reset: {str(e)}")
+            
+        # Determine if all reset operations were successful
+        all_reset = all(reset_results.values())
+        
+        if all_reset:
+            return jsonify({
+                "success": True,
+                "message": "Game has been completely reset to initial state",
+                "details": reset_results
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Some game elements could not be reset",
+                "details": reset_results
+            })
+            
+    except Exception as e:
+        logger.error(f"Unhandled exception during hard reset: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": f"Hard reset failed: {str(e)}",
+            "details": reset_results
         }), 500
 
 

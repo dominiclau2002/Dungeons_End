@@ -1,9 +1,9 @@
 from flask import Flask, jsonify, request
 import requests
 import os
-import pika, json
-from datetime import datetime
 import logging
+from datetime import datetime
+from composite_services.utilities.activity_logger import log_activity
 
 app = Flask(__name__)
 
@@ -17,30 +17,7 @@ INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_ser
 ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5016")
 PLAYER_ROOM_INTERACTION_SERVICE_URL = os.getenv("PLAYER_ROOM_INTERACTION_SERVICE_URL", "http://player_room_interaction_service:5040")
 ENEMY_SERVICE_URL = os.getenv("ENEMY_SERVICE_URL", "http://enemy_service:5005")
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-ACTIVITY_LOG_QUEUE = "activity_log_queue"
-
-
-def send_activity_log(player_id, action):
-    try:
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
-        channel = connection.channel()
-        channel.queue_declare(queue=ACTIVITY_LOG_QUEUE, durable=True)
-        message = {
-            "player_id": player_id,
-            "action": action,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        channel.basic_publish(
-            exchange='',
-            routing_key=ACTIVITY_LOG_QUEUE,
-            body=json.dumps(message),
-            properties=pika.BasicProperties(delivery_mode=2)
-        )
-        connection.close()
-        logger.debug(f"Activity log sent: {action}")
-    except Exception as e:
-        logger.error(f"Failed to send activity log: {str(e)}")
+ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 
 @app.route('/game/reset/<int:player_id>', methods=['POST'])
 def reset_character_progress(player_id):
@@ -64,8 +41,8 @@ def reset_character_progress(player_id):
     # ✅ Reset all enemies
     requests.get(f"{ENEMY_SERVICE_URL}/reset")
 
-    # ✅ Log reset via RabbitMQ
-    send_activity_log(player_id, "Game progress reset")
+    # ✅ Log reset via shared utility
+    log_activity(player_id, "Game progress reset")
 
     return jsonify({"message": f"Progress reset for player {player_id}."})
 
@@ -182,8 +159,8 @@ def full_game_reset(player_id):
             logger.error(f"Error in room reset process: {str(e)}")
             reset_results["errors"].append(f"Room reset process error: {str(e)}")
         
-        # Log the full reset via RabbitMQ
-        send_activity_log(player_id, f"Full game reset performed for {player_name}")
+        # Log the full reset via shared utility
+        log_activity(player_id, f"Full game reset performed for {player_name}")
         
         # Determine overall success
         overall_success = all([
@@ -242,8 +219,8 @@ def end_game(player_id):
                 new_score = score_response.json().get("new_sum_score", current_score + completion_bonus)
                 score_message = f"FINAL SCORE: {new_score} (includes +{completion_bonus} completion bonus!)"
                 
-                # Log this achievement
-                send_activity_log(player_id, f"Completed the game! (+{completion_bonus} score)")
+                # Log this achievement using the shared utility
+                log_activity(player_id, f"Completed the game! (+{completion_bonus} score)")
                 logger.info(f"Player {player_id} completed the game with final score {new_score}")
             else:
                 logger.warning(f"Failed to award completion bonus: {score_response.status_code}")
@@ -363,8 +340,8 @@ def hard_reset(player_id):
         except Exception as e:
             logger.error(f"Error resetting rooms: {str(e)}")
             
-        # Send a hard reset log event via RabbitMQ
-        send_activity_log(player_id, "HARD RESET performed on game")
+        # Send a hard reset log event via shared utility
+        log_activity(player_id, "HARD RESET performed on game")
         
         # Determine if all reset operations were successful
         all_reset = all(reset_results.values())

@@ -21,36 +21,7 @@ ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5016")
 ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 PLAYER_ROOM_INTERACTION_SERVICE_URL = os.getenv("PLAYER_ROOM_INTERACTION_SERVICE_URL", "http://player_room_interaction_service:5040")
 
-# def log_activity(player_id, action):
-#     """
-#     Logs player activity by making a REST API call to the activity_log_service.
-#     """
-#     if not player_id or not action:
-#         logger.error("Missing required parameters for logging: player_id and action must be provided")
-#         return False
-        
-#     url = f"{ACTIVITY_LOG_SERVICE_URL}/api/log"
-#     data = {
-#         "player_id": player_id,
-#         "action": action,
-#         "timestamp": datetime.utcnow().isoformat()
-#     }
-    
-#     try:
-#         response = requests.post(url, json=data, timeout=5)
-        
-#         if response.status_code == 201:
-#             logger.debug(f"Activity logged successfully: Player {player_id} - {action}")
-#             return True
-#         else:
-#             logger.error(f"Failed to log activity: {response.status_code} - {response.text}")
-#             return False
-#     except requests.exceptions.RequestException as e:
-#         logger.error(f"Error connecting to activity log service: {str(e)}")
-#         return False
-#     except Exception as e:
-#         logger.error(f"Unexpected error logging activity: {str(e)}")
-#         return False
+
 
 @app.route('/combat/start/<int:enemy_id>', methods=['POST'])
 def start_combat(enemy_id):

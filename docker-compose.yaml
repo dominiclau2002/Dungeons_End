@@ -281,22 +281,6 @@ services:
       - activity_log_service
       - rabbitmq  # Added dependency
 
-  calculate_score_service:
-    build:
-      context: .
-      dockerfile: composite_services/calculate_score/Dockerfile
-    restart: always
-    environment:
-      SCORE_SERVICE_URL: http://score_service:5008
-      ACTIVITY_LOG_SERVICE_URL: http://activity_log_service:5013
-      RABBITMQ_HOST: rabbitmq  # Added for direct RabbitMQ communication
-    ports:
-      - "5015:5015"
-    depends_on:
-      - score_service
-      - rabbitmq  # Added dependency
-
-
   web_app:
     build:
       context: .

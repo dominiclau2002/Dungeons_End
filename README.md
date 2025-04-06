@@ -101,6 +101,8 @@ The main services run on the following ports:
 - **Enter Room Service**: 5011
 - **Pick Up Item Service**: 5019
 - **Manage Game Service**: 5014
+- **Apply Item Effects Service**: 5025
+- **Open Inventory Service**: 5010
 
 ## Game Controls
 
@@ -182,12 +184,12 @@ The application follows a microservices architecture:
 - **score_service**: Tracks player scores
 
 ### Composite Services
-- **entering_room_service**: Orchestrates room entry logic
+- **entering_room_service**: Manages room entry logic
 - **fight_enemy_service**: Manages combat between players and enemies
 - **pick_up_item_service**: Handles item collection logic
 - **apply_item_effects_service**: Processes special item effects
 - **manage_game_service**: Provides game state management
-
+- **open_inventory_service**: Manages inventory display and interactions
 ### Messaging System
 - Uses RabbitMQ for asynchronous activity logging
 - Messages are published to "activity_log_queue"

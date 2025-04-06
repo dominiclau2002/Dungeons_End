@@ -19,44 +19,11 @@ PLAYER_SERVICE_URL = os.getenv("PLAYER_SERVICE_URL", "http://player_service:5000
 ITEM_SERVICE_URL = os.getenv("ITEM_SERVICE_URL", "http://item_service:5002")
 ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
 
-# def log_activity(player_id, action):
-#     """
-#     Logs player activity by making a REST API call to the activity_log_service.
-#     """
-#     if not player_id or not action:
-#         logger.error("Missing required parameters for logging: player_id and action must be provided")
-#         return False
-        
-#     url = f"{ACTIVITY_LOG_SERVICE_URL}/api/log"
-#     data = {
-#         "player_id": player_id,
-#         "action": action,
-#         "timestamp": datetime.utcnow().isoformat()
-#     }
-    
-#     try:
-#         response = requests.post(url, json=data, timeout=5)
-        
-#         if response.status_code == 201:
-#             logger.debug(f"Activity logged successfully: Player {player_id} - {action}")
-#             return True
-#         else:
-#             logger.error(f"Failed to log activity: {response.status_code} - {response.text}")
-#             return False
-#     except requests.exceptions.RequestException as e:
-#         logger.error(f"Error connecting to activity log service: {str(e)}")
-#         return False
-#     except Exception as e:
-#         logger.error(f"Unexpected error logging activity: {str(e)}")
-#         return False
-
 @app.route('/apply_item_effect', methods=['POST'])
 def apply_item_effect():
     """
     Apply special effects for items when picked up.
-    Currently handles:
-    - Item ID 1 (Golden Sword): Increases player attack by 20
-    - Future special items can be added here
+    Uses the HasEffect field to determine if an item has effects to apply
     """
     data = request.get_json()
     if not data:
@@ -91,6 +58,17 @@ def apply_item_effect():
                 break
         if not item_name:
             item_name = f"Item {item_id}"
+            
+        # Check if the item has effects to apply
+        has_effect = item_data.get("has_effect", False)
+        if not has_effect:
+            return jsonify({
+                "message": f"No special effect for item {item_id}",
+                "item_id": item_id,
+                "item_name": item_name,
+                "effect_applied": False
+            })
+            
     except Exception as e:
         logger.error(f"Error fetching item details: {str(e)}")
         return jsonify({"error": f"Error fetching item details: {str(e)}"}), 500
@@ -100,8 +78,8 @@ def apply_item_effect():
     effect_description = ""
     effect_data = {}
     
-    # Item ID 1: Golden Sword - increases attack by 20
-    if item_id == 1:
+    # Golden Sword effect - increases attack by 20
+    if item_name == "Golden Sword":
         logger.debug(f"Applying Golden Sword effect for player {player_id}")
         
         try:
@@ -152,11 +130,15 @@ def apply_item_effect():
         except Exception as e:
             logger.error(f"Error applying Golden Sword effect: {str(e)}")
             return jsonify({"error": f"Error applying item effect: {str(e)}"}), 500
+            
+    # Add more item effect conditions here for other items that have HasEffect=True
+    # elif item_name == "Magic Amulet":
+    #     # Apply Magic Amulet effect
     
-    # No effect for this item
+    # No specific effect handler for this item
     if not effect_applied:
         return jsonify({
-            "message": f"No special effect for item {item_id}",
+            "message": f"No specific effect handler for item {item_id} ({item_name})",
             "item_id": item_id,
             "item_name": item_name,
             "effect_applied": False

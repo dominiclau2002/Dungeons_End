@@ -25,7 +25,7 @@ with app.app_context():
 def create_item():
     data = request.get_json()
 
-    required_fields = ["name", "description", "points"]
+    required_fields = ["name", "description"]
     if not data or not all(field in data for field in required_fields):
         return jsonify({
             "error": "Missing required fields",
@@ -42,7 +42,8 @@ def create_item():
     new_item = Item(
         Name=data["name"],
         Description=data["description"],
-        Points=data["points"]
+        Points=data.get("points", 0),
+        HasEffect=data.get("has_effect", False)
     )
 
     db.session.add(new_item)
@@ -101,6 +102,8 @@ def update_item(item_id):
         item.Description = data["description"]
     if "points" in data:
         item.Points = data["points"]
+    if "has_effect" in data:
+        item.HasEffect = data["has_effect"]
 
     db.session.commit()
 

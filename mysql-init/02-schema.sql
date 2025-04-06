@@ -28,7 +28,9 @@ USE item_db;
 CREATE TABLE Item (
     ItemID INT AUTO_INCREMENT PRIMARY KEY,
     Name VARCHAR(50) UNIQUE NOT NULL,
-    Description VARCHAR(200) NOT NULL
+    Description VARCHAR(200) NOT NULL,
+    HasEffect BOOLEAN DEFAULT FALSE NOT NULL,
+    Points INT DEFAULT 0 NOT NULL
 );
 
 -- ✅ Use `inventory_db`
@@ -72,13 +74,13 @@ CREATE TABLE Room (
 
 -- ✅ Sample Data for Items
 USE item_db;
-INSERT INTO Item (Name, Description) VALUES
-('Golden Sword', 'A shiny golden sword with high damage'),
-('Leather Armor', 'Basic protective armor'),
-('Small Shield', 'A small wooden shield'),
-('Seaweed', 'Smells like seaweed'),
-('Lockpick', 'Unlocks most doors'),
-('Magic Amulet', 'Grants resistance to magic');
+INSERT INTO Item (Name, Description, HasEffect, Points) VALUES
+('Golden Sword', 'A shiny golden sword with high damage', TRUE, 100),
+('Leather Armor', 'Basic protective armor', FALSE, 50),
+('Small Shield', 'A small wooden shield', FALSE, 30),
+('Seaweed', 'Smells like seaweed', FALSE, 10),
+('Lockpick', 'Unlocks most doors', FALSE, 75),
+('Magic Amulet', 'Grants resistance to magic', FALSE, 150);
 
 -- Insert data into Enemy table
 USE enemy_db; 

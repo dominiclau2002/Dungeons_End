@@ -8,9 +8,6 @@ import secrets
 import pika
 import json 
 
-
-
-
 app = Flask(__name__, static_folder="web/static", static_url_path="/static")
 app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(16))
 
@@ -18,60 +15,19 @@ app.secret_key = os.getenv("SECRET_KEY", secrets.token_hex(16))
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# ✅ Microservice URLs
-PLAYER_SERVICE_URL = os.getenv(
-    "PLAYER_SERVICE_URL", "http://player_service:5000")
-ENTERING_ROOM_SERVICE_URL = os.getenv(
-    "ENTERING_ROOM_SERVICE_URL", "http://entering_room_service:5011")
-PICK_UP_ITEM_SERVICE_URL = os.getenv(
-    "PICK_UP_ITEM_SERVICE_URL", "http://pick_up_item_service:5019")
-OPEN_INVENTORY_SERVICE_URL = os.getenv(
-    "OPEN_INVENTORY_SERVICE_URL", "http://open_inventory_service:5010")
-ITEM_SERVICE_URL = os.getenv(
-    "ITEM_SERVICE_URL", "http://item_service:5020")
-ROOM_SERVICE_URL = os.getenv(
-    "ROOM_SERVICE_URL", "http://room_service:5030")
-COMBAT_SERVICE_URL = os.getenv(
-    "COMBAT_SERVICE_URL", "http://fight_enemy_service:5009")
+# Microservice URLs
+PLAYER_SERVICE_URL = os.getenv("PLAYER_SERVICE_URL", "http://player_service:5000")
+ENTERING_ROOM_SERVICE_URL = os.getenv("ENTERING_ROOM_SERVICE_URL", "http://entering_room_service:5011")
+PICK_UP_ITEM_SERVICE_URL = os.getenv("PICK_UP_ITEM_SERVICE_URL", "http://pick_up_item_service:5019")
+OPEN_INVENTORY_SERVICE_URL = os.getenv("OPEN_INVENTORY_SERVICE_URL", "http://open_inventory_service:5010")
+ITEM_SERVICE_URL = os.getenv("ITEM_SERVICE_URL", "http://item_service:5020")
+ROOM_SERVICE_URL = os.getenv("ROOM_SERVICE_URL", "http://room_service:5030")
+COMBAT_SERVICE_URL = os.getenv("COMBAT_SERVICE_URL", "http://fight_enemy_service:5009")
 ACTIVITY_LOG_SERVICE_URL = os.getenv("ACTIVITY_LOG_SERVICE_URL", "http://activity_log_service:5013")
-PLAYER_ROOM_INTERACTION_SERVICE_URL = os.getenv(
-    "PLAYER_ROOM_INTERACTION_SERVICE_URL", "http://player_room_interaction_service:5040")
+PLAYER_ROOM_INTERACTION_SERVICE_URL = os.getenv("PLAYER_ROOM_INTERACTION_SERVICE_URL", "http://player_room_interaction_service:5040")
 INVENTORY_SERVICE_URL = os.getenv("INVENTORY_SERVICE_URL", "http://inventory_service:5001")
 MANAGE_GAME_SERVICE_URL = os.getenv("MANAGE_GAME_SERVICE_URL", "http://manage_game_service:5014")
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-
-
-# def log_activity(player_id, action):
-#     """
-#     Logs player activity by making a REST API call to the activity_log_service.
-#     """
-#     if not player_id or not action:
-#         logger.error("Missing required parameters for logging: player_id and action must be provided")
-#         return False
-        
-#     url = f"{ACTIVITY_LOG_SERVICE_URL}/api/log"
-#     data = {
-#         "player_id": player_id,
-#         "action": action,
-#         "timestamp": datetime.utcnow().isoformat()
-#     }
-    
-#     try:
-#         response = requests.post(url, json=data, timeout=5)
-        
-#         if response.status_code == 201:
-#             logger.debug(f"Activity logged successfully: Player {player_id} - {action}")
-#             return True
-#         else:
-#             logger.error(f"Failed to log activity: {response.status_code} - {response.text}")
-#             return False
-#     except requests.exceptions.RequestException as e:
-#         logger.error(f"Error connecting to activity log service: {str(e)}")
-#         return False
-#     except Exception as e:
-#         logger.error(f"Unexpected error logging activity: {str(e)}")
-#         return False
-
 
 # Add login routes
 @app.route("/login", methods=["GET"])
@@ -249,9 +205,6 @@ def home():
         
     return render_template("index.html", player_id=player_id, player_name=player_name)
 
-
-
-
 @app.route("/get_player_room", methods=["GET"])
 def get_player_room():
     """Gets the player's current room ID."""
@@ -289,7 +242,6 @@ def get_player_room():
         
     logger.debug(f"GET /get_player_room - Final room ID: {room_id}")
     return jsonify({"room_id": room_id})
-
 
 @app.route("/enter_room", methods=["POST"])
 def enter_room():
@@ -360,7 +312,6 @@ def enter_room():
         logger.error(f"Error connecting to entering_room service: {str(e)}")
         return jsonify({"error": "Failed to connect to room service"}), 500
 
-
 def create_end_of_game_response(player_id, message="Congratulations! You've completed the game!"):
     """
     Creates a response for when the game is finished
@@ -392,7 +343,6 @@ def create_end_of_game_response(player_id, message="Congratulations! You've comp
             "score_message": "Unable to retrieve score",
             "error": str(e)
         }), 200
-
 
 @app.route("/pick_up_item", methods=["POST"])
 def pick_up_item():
@@ -428,9 +378,6 @@ def pick_up_item():
         logger.error(f"Error connecting to pick_up_item service: {str(e)}")
         return jsonify({"error": f"Failed to connect to pick up item service: {str(e)}"}), 500
 
-
-
-
 @app.route("/view_inventory", methods=["GET"])
 def view_inventory():
     """Retrieves the player's inventory with item details."""
@@ -439,8 +386,7 @@ def view_inventory():
     if not player_id:
         player_id = get_current_player_id()
 
-    logger.debug(
-        f"GET /view_inventory - Retrieving inventory for player ID: {player_id}")
+    logger.debug(f"GET /view_inventory - Retrieving inventory for player ID: {player_id}")
 
     if not player_id:
         return jsonify({"error": "Player ID is required"}), 400
@@ -453,15 +399,13 @@ def view_inventory():
     logger.debug(f"Calling inventory service: {inventory_url}")
 
     response = requests.get(inventory_url)
-    logger.debug(
-        f"Inventory service response: {response.status_code} - {response.text}")
+    logger.debug(f"Inventory service response: {response.status_code} - {response.text}")
 
     if response.status_code != 200:
         logger.error(f"Failed to retrieve inventory: {response.text}")
         return jsonify({"error": "Failed to retrieve inventory"}), response.status_code
 
     # The inventory data already contains the enhanced items with descriptions
-    # Pass it through directly instead of just extracting IDs
     inventory_data = response.json()
 
     return jsonify({
@@ -482,14 +426,12 @@ def fetch_item_details():
     logger.debug(f"Fetching item details from: {item_url}")
 
     response = requests.get(item_url)
-    logger.debug(
-        f"Item service response: {response.status_code} - {response.text}")
+    logger.debug(f"Item service response: {response.status_code} - {response.text}")
 
     if response.status_code != 200:
         return jsonify({"error": "Failed to fetch item details"}), response.status_code
 
     return jsonify(response.json())
-
 
 @app.route("/fetch_item_details_batch", methods=["POST"])
 def fetch_item_details_batch_endpoint():
@@ -525,7 +467,6 @@ def fetch_item_details_batch(item_ids):
         logger.error(f"Error fetching item details: {str(e)}")
         return []
 
-
 @app.route("/room_info/<int:room_id>", methods=["GET"])
 def get_room_info(room_id):
     """Gets room information without entering the room."""
@@ -543,7 +484,6 @@ def get_room_info(room_id):
 
     return jsonify(response.json())
 
-
 @app.route("/player_stats", methods=["GET"])
 def player_stats():
     """Retrieves the player's stats from the player service."""
@@ -552,8 +492,7 @@ def player_stats():
     if not player_id:
         player_id = get_current_player_id()
 
-    logger.debug(
-        f"GET /player_stats - Retrieving stats for player ID: {player_id}")
+    logger.debug(f"GET /player_stats - Retrieving stats for player ID: {player_id}")
 
     if not player_id:
         return jsonify({"error": "Player ID is required"}), 400
@@ -564,8 +503,7 @@ def player_stats():
 
     try:
         response = requests.get(player_url)
-        logger.debug(
-            f"Player service response: {response.status_code} - {response.text}")
+        logger.debug(f"Player service response: {response.status_code} - {response.text}")
 
         if response.status_code != 200:
             logger.error(f"Failed to retrieve player stats: {response.text}")
@@ -578,7 +516,6 @@ def player_stats():
     except requests.RequestException as e:
         logger.error(f"Request error when calling player service: {str(e)}")
         return jsonify({"error": "Failed to connect to player service"}), 500
-
 
 @app.route("/combat/start/<int:enemy_id>", methods=["POST"])
 def start_combat(enemy_id):
@@ -600,7 +537,6 @@ def start_combat(enemy_id):
     except requests.RequestException as e:
         logger.error(f"Request error when calling combat service: {str(e)}")
         return jsonify({"error": "Failed to connect to combat service"}), 500
-
 
 @app.route("/combat/attack", methods=["POST"])
 def combat_attack():
@@ -625,7 +561,65 @@ def combat_attack():
         logger.error(f"Error connecting to combat service: {str(e)}")
         return jsonify({"error": f"Failed to connect to combat service: {str(e)}"}), 500
 
-
+@app.route("/reset_game", methods=["POST"])
+def reset_game():
+    """Reset the player's progress by setting them back to room 0."""
+    player_id = get_current_player_id()
+    
+    logger.debug(f"POST /reset_game - Calling full game reset for player {player_id}")
+    
+    try:
+        # Call the manage_game service for a full reset
+        response = requests.post(
+            f"{MANAGE_GAME_SERVICE_URL}/game/full-reset/{player_id}",
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"Game successfully reset for player {player_id}")
+            
+            # Call enter_room to properly initialize the starting room for display
+            # We directly call the enter_room endpoint with target_room_id=0
+            enter_room_response = requests.post(
+                f"{ENTERING_ROOM_SERVICE_URL}/room/0",
+                json={"player_id": player_id}
+            )
+            
+            if enter_room_response.status_code == 200:
+                room_data = enter_room_response.json()
+                return jsonify({
+                    "success": True,
+                    "message": "Game has been reset successfully.",
+                    "end_of_game": False,
+                    **room_data
+                })
+            else:
+                logger.error(f"Failed to enter starting room after reset: {enter_room_response.text}")
+                return jsonify({
+                    "success": True,
+                    "message": "Game has been reset, but failed to load starting room. Please refresh.",
+                    "error_details": enter_room_response.text
+                })
+        else:
+            logger.error(f"Failed to reset game: {response.text}")
+            try:
+                error_details = response.json()
+                return jsonify({
+                    "success": False,
+                    "message": "Failed to reset game.",
+                    "error_details": error_details
+                }), 500
+            except:
+                return jsonify({
+                    "success": False,
+                    "message": "Failed to reset game. Unknown error from reset service."
+                }), 500
+    except requests.RequestException as e:
+        logger.error(f"Error connecting to manage_game service: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": f"Failed to connect to game management service: {str(e)}"
+        }), 500
         
 @app.route("/hard_reset", methods=["POST"])
 def hard_reset():
@@ -667,7 +661,6 @@ def hard_reset():
             "message": f"Failed to connect to game management service: {str(e)}"
         }), 500
 
-
 @app.route('/player_activity_logs', methods=['GET'])
 @app.route('/player_activity_logs/<int:player_id>', methods=['GET'])
 def player_activity_logs(player_id=None):
@@ -697,7 +690,6 @@ def player_activity_logs(player_id=None):
     except Exception as e:
         logger.error(f"Error retrieving activity logs: {str(e)}")
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050, debug=True)

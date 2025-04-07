@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 from flask import Flask, jsonify, request, render_template, send_from_directory
 from models import db, ActivityLog
+from datetime import datetime, timedelta
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +30,15 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
+def get_sg_timestamp():
+    """
+    Helper function to get Singapore timestamp without pytz.
+    """
+    utc_time = datetime.utcnow()
+    sg_offset = timedelta(hours=8)
+    sg_time = utc_time + sg_offset
+    return sg_time.isoformat()
+
 def send_to_rabbitmq(player_id, action):
     """
     Helper function to send messages to RabbitMQ
@@ -42,7 +52,7 @@ def send_to_rabbitmq(player_id, action):
         message = {
             "player_id": player_id,
             "action": action,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": get_sg_timestamp()
         }
         
         channel.basic_publish(
@@ -66,7 +76,8 @@ def create_log_entry(player_id, action):
     try:
         new_log = ActivityLog(
             PlayerID=player_id,
-            Action=action
+            Action=action,
+            Timestamp = get_sg_timestamp()
         )
         db.session.add(new_log)
         db.session.commit()
@@ -102,7 +113,7 @@ def log_activity():
         "message": "Activity logged successfully",
         "player_id": player_id,
         "action": action,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": get_sg_timestamp()
     }), 201
 
 # API to create a new log entry directly (legacy endpoint)

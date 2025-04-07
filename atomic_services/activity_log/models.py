@@ -1,7 +1,11 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 db = SQLAlchemy()
+
+def sg_now():
+    sg_offset = timedelta(hours=8)
+    return datetime.utcnow() + sg_offset
 
 class ActivityLog(db.Model):
     __tablename__ = 'ActivityLog'
@@ -9,7 +13,7 @@ class ActivityLog(db.Model):
     LogID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     PlayerID = db.Column(db.Integer, nullable=False)
     Action = db.Column(db.String(255), nullable=False)
-    Timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    Timestamp = db.Column(db.DateTime, default=sg_now)
 
     def to_dict(self):
         return {

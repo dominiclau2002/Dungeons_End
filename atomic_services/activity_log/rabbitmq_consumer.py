@@ -5,10 +5,18 @@ from datetime import datetime
 import logging
 import time
 import os
+from datetime import datetime, timedelta, timezone
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def to_sgt(dt):
+    """
+    Converts a datetime (naive or aware) to Singapore Time (UTC+8).
+    """
+    sg_offset = timedelta(hours=8)
+    return dt.astimezone(timezone(sg_offset)) if dt.tzinfo else (dt + sg_offset).replace(tzinfo=timezone(sg_offset))
 
 def consume_messages():
     # Add delay to ensure RabbitMQ is fully started
@@ -48,6 +56,8 @@ def consume_messages():
                             timestamp = datetime.utcnow()
                     else:
                         timestamp = datetime.utcnow()
+
+                    timestamp = to_sgt(timestamp)  # ✅ Only convert after parsing/setting
                     
                     # Create new log entry
                     from app import app

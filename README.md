@@ -27,6 +27,14 @@ Before doing anything else, **make sure these services are running**:
 
 This ensures that the MySQL database and Docker containers will initialize correctly.
 
+### Important Note About Directory Structure
+
+When you download this repository as a ZIP file from GitHub, it will extract to a folder named `Dungeons_End-main`. You may need to:
+
+1. Rename the extracted folder from `Dungeons_End-main` to `Dungeons_End` 
+   OR
+2. Adjust the commands below to match your actual folder name
+
 ### 1. Clone the repository
 ```bash
 git clone https://github.com/dominiclau2002/Dungeons_End.git
@@ -35,6 +43,11 @@ cd Dungeons_End
 Make sure that the application folder is called **Dungeons_End** and not **Dungeons_End-main**
 
 ### 2. Start the application
+
+Navigate to the project directory in your command prompt or terminal:
+
+```bash
+cd path\to\Dungeons_End
 
 From the project root directory, run:
 

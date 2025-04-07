@@ -132,6 +132,7 @@ If some services fail to start:
 
 3. Rebuild and restart all services:
    ```bash
+   docker-compose down --remove-orphans
    docker-compose down
    docker-compose up --build -d
    ```
@@ -152,6 +153,7 @@ If you encounter database connection issues:
 
 3. Reset the database (this will erase all data):
    ```bash
+   docker-compose down --remove-orphans
    docker-compose down -v
    docker-compose up -d
    ```
@@ -198,6 +200,7 @@ The application follows a microservices architecture:
 
 - If you make code changes, rebuild the affected services:
   ```bash
+  docker-compose down --remove-orphans
   docker-compose build <service-name>
   docker-compose up -d <service-name>
   ```

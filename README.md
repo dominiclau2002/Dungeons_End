@@ -35,12 +35,25 @@ When you download this repository as a ZIP file from GitHub, it will extract to 
    OR
 2. Adjust the commands below to match your actual folder name
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/dominiclau2002/Dungeons_End.git
-cd Dungeons_End
-```
-Make sure that the application folder is called **Dungeons_End** and not **Dungeons_End-main**
+After extracting the ZIP file, you'll need to navigate to the nested Dungeons_End directory:
+
+cd Dungeons_End\Dungeons_End
+
+# or if you downloaded from GitHub:
+cd Dungeons_End-main\Dungeons_End
+
+Dungeons_End/           <- Extract ZIP to this folder
+├── Dungeons_End/       <- Navigate to this folder to run commands
+│   ├── docker-compose.yml
+│   ├── atomic_services/
+│   ├── composite_services/
+│   └── ...
+
+Common Issues:
+
+- "No configuration file provided: not found" error:
+  This typically means you're not in the correct directory.
+  Make sure you've navigated to the nested Dungeons_End folder where the docker-compose.yml file is located.
 
 ### 2. Start the application
 

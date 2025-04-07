@@ -32,6 +32,7 @@ This ensures that the MySQL database and Docker containers will initialize corre
 git clone https://github.com/dominiclau2002/Dungeons_End.git
 cd Dungeons_End
 ```
+Make sure that the application folder is called **Dungeons_End** and not **Dungeons_End-main**
 
 ### 2. Start the application
 
